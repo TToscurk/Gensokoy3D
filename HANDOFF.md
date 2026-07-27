@@ -396,6 +396,9 @@ controller 有預設值，沒填的角色零影響。緣一：一段跳 2.87m、
 
 - `.tmp/` 是工作目錄：測試腳本、截圖工具、探針、貼圖下載腳本、
   Poly Haven API 快取（`ph_assets.json`，可刪，重跑會重建）。
+  **`.gitignore` 只收 `.tmp/*.mjs`** —— 腳本是專案資產（自動化驗證整章靠它們），
+  其餘產出（截圖、UE5 烘焙輸出，約 100MB）不進版本控制。
+  截圖路徑原本寫死作者舊機器的家目錄，已全部改成 `os.tmpdir()`。
 - `.tmp/ue5_export/` 是 UE5 移植線的地形烘焙輸出（那條線目前暫停）。
 - `node_modules/three/index.mjs` 是**手寫的最小 three stub**，
   讓 Node 能直接 import `terrain.js` 算高度（規劃建築配置用），不是真的 three。
