@@ -36,6 +36,10 @@ export const meta = {
 export const entries = {
   // 從參道上來 —— 站在石段頂端的大鳥居下，面向社殿
   from_sando: { x: 0, z: -84, facing: 0 },
+  // 從太陽花田過來 —— 站在神社的南緣
+  from_sunflower: { x: -56, z: 152, facing: Math.PI * -0.2 },
+  // 從白玉樓回來 —— 落在西坡的結界之門外，回頭就是上山的坡道
+  from_netherworld: { x: -126, z: 34, facing: Math.PI * -0.55 },
   default: meta.spawn,
 };
 
@@ -48,6 +52,27 @@ export const portals = [
     trigger: { x: 0, z: -150, r: 9 },
     label: '往參道',
     style: 'walk',
+    condition: null,
+  },
+  {
+    id: 'shrine_to_sunflower',
+    to: 'sunflower',
+    entry: 'from_shrine',
+    // 南緣：神社後方往山反方向的緩坡，盡頭是太陽花田
+    trigger: { x: -72, z: 186, r: 10 },
+    label: '往太陽花田',
+    style: 'walk',
+    condition: null,
+  },
+  {
+    id: 'shrine_to_netherworld',
+    to: 'netherworld',
+    entry: 'from_shrine',
+    // 西坡下方的結界之門 —— 大結界最薄的一線，紫來去冥界走的路。
+    // 坡面實測平緩（46m → 平台 104m 是一段連續的坡道）
+    trigger: { x: -150, z: 40, r: 7 },
+    label: '結界之門（往白玉樓）',
+    style: 'gate',
     condition: null,
   },
 ];

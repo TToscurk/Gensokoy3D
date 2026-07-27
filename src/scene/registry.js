@@ -11,6 +11,17 @@ export const MAP_LOADERS = {
   lake: () => import('./maps/lake.js'),
   sdm: () => import('./maps/sdm.js'),
   bamboo: () => import('./maps/bamboo.js'),
+  myouren: () => import('./maps/myouren.js'),
+  kourindou: () => import('./maps/kourindou.js'),
+  muenzuka: () => import('./maps/muenzuka.js'),
+  sunflower: () => import('./maps/sunflower.js'),
+  namelessHill: () => import('./maps/namelessHill.js'),
+  youkaiMountain: () => import('./maps/youkaiMountain.js'),
+  tenguVillage: () => import('./maps/tenguVillage.js'),
+  moriya: () => import('./maps/moriya.js'),
+  netherworld: () => import('./maps/netherworld.js'),
+  tenkai: () => import('./maps/tenkai.js'),
+  higan: () => import('./maps/higan.js'),
 };
 
 export const MAP_IDS = Object.keys(MAP_LOADERS);

@@ -1,8 +1,6 @@
-// 迷途竹林／永遠亭 —— 階段 3 遷移的第五張圖。
-//
-// 竹林是 buildVegetation 裡「固定位置的地景」之一（buildBamboo 依
-// REGION bamboo 的世界座標下種）。分圖之後那批地景改成依範圍取捨，
-// 所以只有這張圖會真的長出竹子 —— 別張圖不必再扛整片竹林。
+// 香霖堂 —— 階段 3 遷移。里與魔法之森之間的古道具店。
+// 與 village→forest 幾乎共線（香霖堂本來就在那條路上），所以只接 village，
+// 不和 forest 開第二個門 —— 兩個 portal 擠在同一個方向會分不清誰是誰。
 import * as THREE from 'three';
 import { REGION_BY_ID } from '../../config.js';
 import { buildTerrain, buildTerrainSkirt, terrainHeight } from '../../world/terrain.js';
@@ -11,50 +9,36 @@ import { buildStructureSet } from '../../world/structures.js';
 import { mergeStaticByMaterial } from '../../core/optimize.js';
 import { Atmosphere } from '../../fx/atmosphere.js';
 
-const R = REGION_BY_ID.bamboo;
+const R = REGION_BY_ID.kourindou;
 
 export const ORIGIN = { x: R.x, z: R.z };
 
 export const meta = {
-  id: 'bamboo',
-  zh: '迷途竹林',
-  en: 'BAMBOO FOREST OF THE LOST',
-  size: 600,                       // 竹林半徑 235，永遠亭在裡面
-  spawn: { x: 0, z: 80, facing: Math.PI },
+  id: 'kourindou',
+  zh: '香霖堂',
+  en: 'KOURINDOU',
+  size: 260,
+  spawn: { x: 0, z: 30, facing: 0 },
   fog: R.fog,
   accent: R.accent,
   sky: 'day',
   bgm: null,
-  // 從舊世界的高度場切出來的圖：遠景裙襬直接續用同一個高度場，
-  // 天際線會是地理上真的那片地貌（規格書 §1）。
   heightSpace: 'world',
 };
 
 export const entries = {
-  // 從魔法之森過來 —— 站在竹林的西北緣
-  from_forest: { x: -230, z: -190, facing: Math.PI * 0.75 },
-  // 從無名之丘回來 —— 站在竹林的東緣
-  from_namelessHill: { x: 232, z: -94, facing: Math.PI * -0.35 },
+  // 從人間之里過來 —— 站在店前坡上的乾燥處（北側低地是濕原）
+  from_village: { x: 80, z: -80, facing: Math.PI * 0.6 },
   default: meta.spawn,
 };
 
 export const portals = [
   {
-    id: 'bamboo_to_forest',
-    to: 'forest',
-    entry: 'from_bamboo',
-    trigger: { x: -260, z: -225, r: 12 },
-    label: '往魔法之森',
-    style: 'walk',
-    condition: null,
-  },
-  {
-    id: 'bamboo_to_namelessHill',
-    to: 'namelessHill',
-    entry: 'from_bamboo',
-    // 東緣：穿出竹林是鈴蘭咲く丘
-    trigger: { x: 270, z: -110, r: 12 },
-    label: '往無名之丘',
+    id: 'kourindou_to_village',
+    to: 'village',
+    entry: 'from_kourindou',
+    trigger: { x: 78, z: -95, r: 9 },
+    label: '往人間之里',
     style: 'walk',
     condition: null,
   },
@@ -67,20 +51,18 @@ export function heightAt(x, z) {
 export async function build(ctx) {
   const { quality: q, progress } = ctx;
   const group = new THREE.Group();
-  group.name = 'map:bamboo';
+  group.name = 'map:kourindou';
 
-  await progress?.(20, '鋪開竹林地表…');
+  await progress?.(20, '整平店前空地…');
   const seg = Math.max(48, Math.min(256, Math.round(meta.size / 4)));
   const terrain = buildTerrain(seg, { size: meta.size, ox: ORIGIN.x, oz: ORIGIN.z });
   group.add(terrain);
 
-  // 遠景裙襬：地形之外一圈低解析度背景，延伸到霧之外，
-  // 免得地圖邊緣被切出硬邊（1 個 draw call）。
   const skirt = buildTerrainSkirt(meta.size / 2, 1100, heightAt);
   group.add(skirt);
 
-  await progress?.(48, '建起永遠亭…');
-  const st = buildStructureSet(['bamboo']);
+  await progress?.(50, '開張香霖堂…');
+  const st = buildStructureSet(['kourindou']);
   mergeStaticByMaterial(st.root, ['clock-hands', 'rope-cabin']);
   st.root.position.set(-ORIGIN.x, 0, -ORIGIN.z);
   group.add(st.root);
@@ -95,22 +77,7 @@ export async function build(ctx) {
     return l;
   });
 
-  const interactives = [];
-  for (const inr of st.interiors) {
-    const e = toLocal(inr.enter), ins = toLocal(inr.inside), ex = toLocal(inr.exit);
-    interactives.push({
-      id: inr.id + ':enter', label: `進入${inr.zh}`,
-      x: e.x, z: e.z, y: e.y,
-      to: { x: ins.x, z: ins.z, y: ins.y }, zh: inr.zh, msg: '推門而入…',
-    });
-    interactives.push({
-      id: inr.id + ':exit', label: `離開${inr.zh}`,
-      x: ins.x, z: ins.z, y: ins.y,
-      to: { x: ex.x, z: ex.z, y: ex.y }, zh: inr.zh, msg: '回到戶外…',
-    });
-  }
-
-  await progress?.(72, '長出竹海…');
+  await progress?.(70, '種下店周的雜木…');
   const density = q.trees / (2400 * 0.92) ** 2;
   setClearings(st.clearings);
   const vegetation = buildVegetation(Math.round(density * meta.size ** 2), {
@@ -120,12 +87,11 @@ export async function build(ctx) {
   vegetation.position.set(-ORIGIN.x, 0, -ORIGIN.z);
   group.add(vegetation);
 
-  await progress?.(88, '鋪上林下草地…');
-  const grass = q.grass > 0 ? new GrassField(Math.round(q.grass * 0.5)) : null;
+  await progress?.(85, '鋪上草地…');
+  const grass = q.grass > 0 ? new GrassField(Math.round(q.grass * 0.6)) : null;
   if (grass) group.add(grass.mesh);
 
-  // 迷途竹林：霧濃，雲少（抬頭是竹梢不是天）
-  const atmosphere = new Atmosphere(Math.round(q.clouds * 0.25), Math.round(q.mist * 0.9));
+  const atmosphere = new Atmosphere(Math.round(q.clouds * 0.4), Math.round(q.mist * 0.4));
   group.add(atmosphere.group);
 
   return {
@@ -135,10 +101,10 @@ export async function build(ctx) {
     colliders,
     lanterns,
     staticLights,
-    interactives,
+    interactives: [],
     clearings,
     portals,
-    npcs: ['reisen', 'kaguya', 'eirin', 'mokou'],
+    npcs: ['rinnosuke'],
     mobs: [],
     terrain, vegetation, grass, atmosphere,
 

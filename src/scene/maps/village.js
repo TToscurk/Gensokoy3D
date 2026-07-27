@@ -39,6 +39,11 @@ export const entries = {
   from_forest: { x: -150, z: 186, facing: Math.PI * -0.25 },
   // 從湖回來 —— 站在里的西北緣
   from_lake: { x: -160, z: -140, facing: Math.PI * 0.75 },
+  // 從命蓮寺回來 —— 站在里的西緣
+  from_myouren: { x: -195, z: -42, facing: Math.PI * -0.5 },
+  // 從香霖堂回來 —— 站在里的南緣（香霖堂在里與森林之間的路上；
+  // 兩圖之間是片濕原窪地，出入口繞到南緣的乾燥段）
+  from_kourindou: { x: 40, z: 190, facing: Math.PI * -0.1 },
   default: meta.spawn,
 };
 
@@ -70,6 +75,28 @@ export const portals = [
     // 西北緣：出了里往北就是霧之湖
     trigger: { x: -180, z: -160, r: 12 },
     label: '往霧之湖',
+    style: 'walk',
+    condition: null,
+  },
+  {
+    id: 'village_to_myouren',
+    to: 'myouren',
+    entry: 'from_village',
+    // 西緣：命蓮寺在里西方的丘上
+    trigger: { x: -225, z: -48, r: 10 },
+    label: '往命蓮寺',
+    style: 'walk',
+    condition: null,
+  },
+  {
+    id: 'village_to_kourindou',
+    to: 'kourindou',
+    entry: 'from_village',
+    // 南緣：往森林的路上會先經過香霖堂。
+    // 注意不在西南直線上 —— 那一帶是低於水準面的濕原窪地，
+    // 出入口放在南緣的乾燥段（實測高度 10.7m）
+    trigger: { x: 50, z: 222, r: 10 },
+    label: '往香霖堂',
     style: 'walk',
     condition: null,
   },

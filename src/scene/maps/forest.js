@@ -35,6 +35,8 @@ export const entries = {
   from_village: { x: 150, z: -186, facing: Math.PI * 0.75 },
   // 從竹林回來 —— 站在森林的東南緣
   from_bamboo: { x: 210, z: 220, facing: Math.PI * -0.75 },
+  // 從無緣塚回來 —— 站在森林的西南緣
+  from_muenzuka: { x: -168, z: 146, facing: Math.PI * 0.35 },
   default: meta.spawn,
 };
 
@@ -56,6 +58,16 @@ export const portals = [
     // 東南緣：森林盡頭接上迷途竹林
     trigger: { x: 240, z: 250, r: 12 },
     label: '往迷途竹林',
+    style: 'walk',
+    condition: null,
+  },
+  {
+    id: 'forest_to_muenzuka',
+    to: 'muenzuka',
+    entry: 'from_forest',
+    // 西南緣：穿過森林深處是無緣者的墓所
+    trigger: { x: -204, z: 177, r: 12 },
+    label: '往無緣塚',
     style: 'walk',
     condition: null,
   },

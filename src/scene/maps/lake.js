@@ -33,6 +33,8 @@ export const entries = {
   from_village: { x: 100, z: 180, facing: Math.PI * 0.75 },
   // 從紅魔館回來 —— 站在湖的西岸
   from_sdm: { x: -160, z: 50, facing: Math.PI * -0.5 },
+  // 從妖怪之山翻埡口下來 —— 站在湖北側的坡肩
+  from_mountain: { x: 44, z: -224, facing: Math.PI * 0.15 },
   default: meta.spawn,
 };
 
@@ -53,6 +55,17 @@ export const portals = [
     // 西岸：湖的對岸就是紅魔館（原作的地理關係）
     trigger: { x: -180, z: 60, r: 12 },
     label: '往紅魔館',
+    style: 'walk',
+    condition: null,
+  },
+  {
+    id: 'lake_to_mountain',
+    to: 'youkaiMountain',
+    entry: 'from_lake',
+    // 北緣坡肩：翻上埡口就是索道山麓站（實測 94.9m，乾燥。
+    // 注意湖北岸本身是湖盆水面，portal 只能開在高處的坡肩）
+    trigger: { x: 40, z: -248, r: 12 },
+    label: '往妖怪之山',
     style: 'walk',
     condition: null,
   },

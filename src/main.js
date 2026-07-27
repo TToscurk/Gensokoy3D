@@ -193,6 +193,7 @@ function restorePersistentLayer() {
   const st = scene.getObjectByName('structures');
   if (st) st.visible = true;
   npcs?.setRoster(null);
+  syncGlobalFx({ id: 'legacy_open' }, null);
 }
 
 /**
@@ -218,8 +219,34 @@ function applyMapContent(map) {
   clearMapStaticLights();
   for (const l of map.staticLights || []) { scene.add(l); mapStaticLights.push(l); }
 
+  syncGlobalFx(manager.meta, map.origin);
+
   clearInteractives();
   for (const it of map.interactives || []) registerInteractive(it);
+}
+
+/** 櫻花吹雪與人魂是全域物件，粒子座標寫死在舊世界的世界座標。
+ *  分圖的座標系以各地圖原點為心，這些粒子只有在「錨點所在的那張圖」
+ *  才對得上位置 —— 進那張圖時整組平移過來，其他圖乾脆收起來，
+ *  免得白玉樓的花瓣飄在魔法之森的上空（世界座標在別張圖是錯的）。
+ *  人魂一半錨魔法之森、一半錨白玉樓：平移後只有屬於這張圖的那半
+ *  會落在視野內，另半掛在圖外遠處，看不見也不花錢。 */
+function syncGlobalFx(meta, origin) {
+  if (!petals || !spirits) return;
+  const id = meta?.id;
+  const anchored = id === 'netherworld' || id === 'forest';
+  if (id === 'legacy_open') {
+    petals.points.visible = spirits.points.visible = true;
+    petals.points.position.set(0, 0, 0);
+    spirits.points.position.set(0, 0, 0);
+  } else if (anchored && origin) {
+    petals.points.visible = id === 'netherworld';
+    spirits.points.visible = true;
+    petals.points.position.set(-origin.x, 0, -origin.z);
+    spirits.points.position.set(-origin.x, 0, -origin.z);
+  } else {
+    petals.points.visible = spirits.points.visible = false;
+  }
 }
 
 /** 把現行地圖的世界物件接回 state —— 切圖後這些參考全是新的。 */
@@ -681,7 +708,7 @@ async function beginTransition(style) {
   $('warpMsg').textContent = pendingDest.msg;
   bar.style.width = '0%';
   fade.classList.add('on');
-  await new Promise(r => setTimeout(r, style === 'gate' ? 480 : 200));
+  await new Promise(r => setTimeout(r, style === 'walk' ? 200 : 480));
   bar.style.width = '55%';
 }
 
@@ -689,8 +716,8 @@ async function endTransition(style) {
   const fade = $('warpFade'), bar = $('warpBar');
   if (!fade) return;
   bar.style.width = '100%';
-  if (style === 'gate') $('warpMsg').textContent = '已抵達。';
-  await new Promise(r => setTimeout(r, style === 'gate' ? 420 : 120));
+  if (style !== 'walk') $('warpMsg').textContent = '已抵達。';
+  await new Promise(r => setTimeout(r, style === 'walk' ? 120 : 420));
   fade.classList.remove('on');
   await new Promise(r => setTimeout(r, 700));   // 等淡出動畫跑完
 }
@@ -701,7 +728,8 @@ async function travelTo(portal) {
   warping = true;
   pendingDest = {
     zh: portal.label || '',
-    msg: portal.style === 'gate' ? '正在跨越結界…' : '',
+    msg: portal.style === 'gate' ? '正在跨越結界…'
+       : portal.style === 'vehicle' ? '索道正在行進…' : '',
   };
   try {
     await manager.load(portal.to, portal.entry, { style: portal.style || 'walk' });

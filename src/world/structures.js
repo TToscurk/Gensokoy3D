@@ -2204,13 +2204,12 @@ function buildHigan(colliders, lights, staticLights) {
 }
 
 // ---------------------------------------------------------------------------
-/** 索道（ロープウェイ）：河童建造、山麓直達守矢神社參道口。
- *  兩站 + 三座塔架 + 雙鋼索 + 兩台會動的車廂。
- *  車廂 Group 命名 'rope-cabin' —— mergeStaticByMaterial 的 skip 名單有它，
- *  漏加就會被烘進靜態合併網格，車廂永遠凍結在起點。 */
-function buildRopeway(colliders, lights) {
-  const g = new THREE.Group();
-  g.name = 'ropeway';
+/** 索道共用資料：兩站位置與貼地弧曲線（整線 buildRopeway 與分圖半段都用）。
+ *  路線：貼地弧。兩站直線懸鏈會在半山腰穿山（此坡中腹比弦高大幾十米），
+ *  改沿地形 +12m 密取支點、兩端降到站體門廊 +4m，CatmullRom 平滑。
+ *  Node 探針驗算（centripetal、26 支點）：全長 390m、鋼索淨空 ≥3.98m，
+ *  車廂底再低 2.9m 仍不擦地；三座塔高均勻 12m。 */
+function ropewayLine() {
   // 山麓站：湖岸陡坡上的石垣月台（四角地形 25.9→16.9，石垣拔高 9.4m，
   // 東北側與坡面齊平可直接走上下；朝湖一面是 9m 擋土牆，山城的味道）。
   // 山上站：參道東側肩台（四角 350.4→352，基座只補 2.4m），出站即參道。
@@ -2218,22 +2217,6 @@ function buildRopeway(colliders, lights) {
   const top = { x: -580, z: -630, F: 352.15, base: 2.4 };
   const lineYaw = Math.atan2(top.x - foot.x, top.z - foot.z);
 
-  // 站體：石垣基座（可行走月台）+ 木板候車小屋，橫跨路線方向
-  for (const st of [foot, top]) {
-    g.add(box(8.6, st.base, 6.6, MAT.stoneWall, st.x, st.F - st.base / 2, st.z));
-    colliders.push({ x: st.x, z: st.z, hw: 4.3, hd: 3.3, y: st.F - st.base, h: st.base, walk: 1 });
-    const hall = makeHall(6.5, 4.5, 2.8, { roofMat: MAT.roofBlack, wallMat: MAT.planks, roofH: 2.0 });
-    hall.position.set(st.x, st.F, st.z);
-    hall.rotation.y = lineYaw + Math.PI / 2;
-    g.add(hall);
-    colliders.push({ x: st.x, z: st.z, hw: 3.6, hd: 2.6, y: st.F, h: 5.4, rotY: lineYaw + Math.PI / 2 });
-    addClearing(st.x, st.z, 7, 7);
-  }
-
-  // 路線：貼地弧。兩站直線懸鏈會在半山腰穿山（此坡中腹比弦高大几十米），
-  // 改沿地形 +12m 密取支點、兩端降到站體門廊 +4m，CatmullRom 平滑。
-  // Node 探針驗算（centripetal、26 支點）：全長 390m、鋼索淨空 ≥3.98m，
-  // 車廂底再低 2.9m 仍不擦地；三座塔高均勻 12m。
   const sup = [new THREE.Vector3(foot.x, foot.F + 4.0, foot.z)];
   for (let t = 0.06; t <= 0.901; t += 0.04) {
     const x = foot.x + (top.x - foot.x) * t, z = foot.z + (top.z - foot.z) * t;
@@ -2244,25 +2227,55 @@ function buildRopeway(colliders, lights) {
     sup.push(new THREE.Vector3(x, terrainHeight(x, z) + off, z));
   }
   sup.push(new THREE.Vector3(top.x, top.F + 4.0, top.z));
-  const curve = new THREE.CatmullRomCurve3(sup);
-  ROPEWAY.curve = curve;
+  return { foot, top, lineYaw, curve: new THREE.CatmullRomCurve3(sup) };
+}
 
-  // 雙鋼索：沿曲線向兩側各偏 1.1m（貼地弧彎折較多，取樣加密到 48 點）
-  const dir = new THREE.Vector3(top.x - foot.x, 0, top.z - foot.z).normalize();
+/** 站體：石垣基座（可行走月台）+ 木板候車小屋，橫跨路線方向 */
+function buildRopewayStation(g, colliders, st, lineYaw) {
+  g.add(box(8.6, st.base, 6.6, MAT.stoneWall, st.x, st.F - st.base / 2, st.z));
+  colliders.push({ x: st.x, z: st.z, hw: 4.3, hd: 3.3, y: st.F - st.base, h: st.base, walk: 1 });
+  const hall = makeHall(6.5, 4.5, 2.8, { roofMat: MAT.roofBlack, wallMat: MAT.planks, roofH: 2.0 });
+  hall.position.set(st.x, st.F, st.z);
+  hall.rotation.y = lineYaw + Math.PI / 2;
+  g.add(hall);
+  colliders.push({ x: st.x, z: st.z, hw: 3.6, hd: 2.6, y: st.F, h: 5.4, rotY: lineYaw + Math.PI / 2 });
+  addClearing(st.x, st.z, 7, 7);
+}
+
+/** 車廂：原點在掛點（鋼索正下方），吊臂 + 廂體 + 窗帶 + 小頂。
+ *  Group 命名 'rope-cabin' —— mergeStaticByMaterial 的 skip 名單有它，
+ *  漏加就會被烘進靜態合併網格，車廂永遠凍結在起點。 */
+function buildRopewayCabin() {
+  const cab = new THREE.Group();
+  cab.name = 'rope-cabin';
+  cab.add(cyl(0.05, 0.05, 1.2, MAT.ironTrim, 0, -0.6, 0, 6));
+  cab.add(box(1.7, 1.6, 2.3, MAT.planks, 0, -2.1, 0));
+  cab.add(box(1.74, 0.5, 2.34, MAT.glassWarm, 0, -1.95, 0));
+  const croof = new THREE.Mesh(curvedRoof(2.2, 2.8, 0.7, 0.2, 0.3), MAT.roofBlack);
+  croof.position.y = -1.25;
+  croof.castShadow = true;
+  cab.add(croof);
+  return cab;
+}
+
+/** 雙鋼索（沿曲線向兩側各偏 1.1m）+ 指定位置的塔架。t0/t1 取曲線的一段。 */
+function buildRopewayCables(g, colliders, curve, lineYaw, t0, t1, towerTs) {
+  const a = curve.getPoint(t0), b = curve.getPoint(t1);
+  const dir = new THREE.Vector3(b.x - a.x, 0, b.z - a.z).normalize();
   const perp = new THREE.Vector3(-dir.z, 0, dir.x);
   for (const s of [-1, 1]) {
     const pts = [];
-    for (let i = 0; i <= 48; i++) {
-      pts.push(curve.getPoint(i / 48).addScaledVector(perp, s * 1.1));
+    for (let i = 0; i <= 24; i++) {
+      pts.push(curve.getPoint(t0 + (t1 - t0) * i / 24).addScaledVector(perp, s * 1.1));
     }
     const tube = new THREE.Mesh(
-      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 96, 0.055, 5), MAT.ironTrim);
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, 0.055, 5), MAT.ironTrim);
     tube.castShadow = true;
     g.add(tube);
   }
 
-  // 塔架三座：四腳收分鐵塔 + 頂部橫臂（貼地弧下塔高均勻 ~12m）
-  for (const tt of [0.22, 0.45, 0.68]) {
+  // 塔架：四腳收分鐵塔 + 頂部橫臂（貼地弧下塔高均勻 ~12m）
+  for (const tt of towerTs) {
     const p = curve.getPoint(tt);
     const gy = terrainHeight(p.x, p.z);
     const th = Math.max(4, p.y - gy + 0.3);
@@ -2282,18 +2295,48 @@ function buildRopeway(colliders, lights) {
     g.add(tower);
     colliders.push({ x: p.x, z: p.z, hw: 1.1, hd: 1.1, y: gy, h: th });
   }
+}
 
-  // 車廂兩台：原點在掛點（鋼索正下方），吊臂 + 廂體 + 窗帶 + 小頂
+/** 分圖用的半段索道（規格書 §1：搭乘＝觸發切圖，不是「會動的物件」）。
+ *  各圖只畫自己那半段纜線，往圖外延伸、消失在霧裡；
+ *  車廂是停靠在月台的道具，不是同一台在兩張圖之間移動。
+ *  end='foot'：山麓站 + 鋼索 t∈[0,0.5] + 塔 0.22/0.45
+ *  end='top' ：山上站 + 鋼索 t∈[0.5,1] + 塔 0.68
+ *  回傳的 group 在世界座標，地圖自行平移回原點。
+ *  除草區由呼叫端用 captureClearings 收成這張圖的一份。 */
+export function buildRopewayHalf(colliders, end) {
+  const { foot, top, lineYaw, curve } = ropewayLine();
+  const g = new THREE.Group();
+  g.name = 'ropeway:' + end;
+  buildRopewayStation(g, colliders, end === 'foot' ? foot : top, lineYaw);
+  buildRopewayCables(g, colliders, curve, lineYaw,
+    end === 'foot' ? 0 : 0.5, end === 'foot' ? 0.5 : 1,
+    end === 'foot' ? [0.22, 0.45] : [0.68]);
+  // 停靠在月台門廊下的車廂（鋼索高 F+4，車廂底離月台約 1m）
+  const cab = buildRopewayCabin();
+  const p = curve.getPoint(end === 'foot' ? 0.008 : 0.992);
+  cab.position.copy(p);
+  cab.rotation.y = lineYaw;
+  g.add(cab);
+  return g;
+}
+
+/** 索道（ロープウェイ）：河童建造、山麓直達守矢神社參道口。
+ *  兩站 + 三座塔架 + 雙鋼索 + 兩台會動的車廂（legacy_open 整線版）。
+ *  分圖的兩端站體請用 buildRopewayHalf，不要重複建整線。 */
+function buildRopeway(colliders, lights) {
+  const g = new THREE.Group();
+  g.name = 'ropeway';
+  const { foot, top, lineYaw, curve } = ropewayLine();
+
+  for (const st of [foot, top]) buildRopewayStation(g, colliders, st, lineYaw);
+
+  ROPEWAY.curve = curve;
+  buildRopewayCables(g, colliders, curve, lineYaw, 0, 1, [0.22, 0.45, 0.68]);
+
+  // 車廂兩台：由主迴圈沿曲線推進
   for (let i = 0; i < 2; i++) {
-    const cab = new THREE.Group();
-    cab.name = 'rope-cabin';
-    cab.add(cyl(0.05, 0.05, 1.2, MAT.ironTrim, 0, -0.6, 0, 6));
-    cab.add(box(1.7, 1.6, 2.3, MAT.planks, 0, -2.1, 0));
-    cab.add(box(1.74, 0.5, 2.34, MAT.glassWarm, 0, -1.95, 0));
-    const croof = new THREE.Mesh(curvedRoof(2.2, 2.8, 0.7, 0.2, 0.3), MAT.roofBlack);
-    croof.position.y = -1.25;
-    croof.castShadow = true;
-    cab.add(croof);
+    const cab = buildRopewayCabin();
     g.add(cab);
     ROPEWAY.cabins.push(cab);
   }
