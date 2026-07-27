@@ -860,10 +860,14 @@ window.addEventListener('resize', () => {
 // ===========================================================================
 // 除錯入口：F12 主控台可直接摸到場景內部，方便調參數。
 // 例：__gensokyo.sky.time = 1150  → 立刻切到黃昏
-window.__gensokyo = { state, scene, camera, renderer, frame, manager,
-  // 現行地圖的內容（切圖後參考會換，所以一律用 getter）
-  get map() { return manager.map; }, get mapGroup() { return manager.map?.group; },
-  get mapId() { return manager.id; },
+window.__gensokyo = { camera, renderer, frame, manager,
+  // `scene` 一律指向「現在載著的那張圖」。切圖後它會指向新圖 ——
+  // 拿它去 traverse 永遠不會摸到已經被 dispose 的舊圖（規格書 §4 #16）。
+  // 需要整個場景（含建築、NPC、燈光等持久層）時用 rootScene。
+  get scene() { return manager.map?.group || null; },
+  rootScene: scene,
+  get state() { return state; },
+  get map() { return manager.map; }, get mapId() { return manager.id; },
   get sky() { return sky; }, get player() { return player; }, get npcs() { return npcs; },
   get quests() { return quests; }, get questLog() { return questLog; },
   get combat() { return combat; }, get mobs() { return mobs; },
