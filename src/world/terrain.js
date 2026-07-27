@@ -281,9 +281,22 @@ function layerTextures() {
   return sets;
 }
 
-export function buildTerrain(segments) {
-  const size = WORLD.size;
-  const geo = new THREE.PlaneGeometry(size, size, segments, segments);
+/**
+ * @param segments  網格分割數
+ * @param opts.size 邊長（預設整個世界）
+ * @param opts.ox/oz 這塊地形在世界座標裡的中心。給定時網格用「局部座標」
+ *   （中心為原點），但高度與著色仍照世界座標取樣 —— 分圖要的就是這個：
+ *   一張 420×420 的小圖有自己的原點，地貌卻和舊世界完全對得上。
+ */
+export function buildTerrain(segments, opts = {}) {
+  const size = opts.size ?? WORLD.size;
+  // 狹長的圖（參道）用得到長方形；省略就是正方形
+  const sizeX = opts.sizeX ?? size, sizeZ = opts.sizeZ ?? size;
+  const ox = opts.ox ?? 0, oz = opts.oz ?? 0;
+  // 分割數依邊長比例分配，保持每一格大致是正方形
+  const segX = Math.max(1, Math.round(segments * sizeX / Math.max(sizeX, sizeZ)));
+  const segZ = Math.max(1, Math.round(segments * sizeZ / Math.max(sizeX, sizeZ)));
+  const geo = new THREE.PlaneGeometry(sizeX, sizeZ, segX, segZ);
   geo.rotateX(-Math.PI / 2);
 
   const pos = geo.attributes.position;
@@ -295,8 +308,7 @@ export function buildTerrain(segments) {
   const a4 = [0, 0, 0, 0], b2 = [0, 0];
 
   for (let i = 0; i < n; i++) {
-    const x = pos.getX(i), z = pos.getZ(i);
-    const h = terrainHeight(x, z);
+    const h = terrainHeight(pos.getX(i) + ox, pos.getZ(i) + oz);
     pos.setY(i, h);
   }
   pos.needsUpdate = true;
@@ -305,7 +317,7 @@ export function buildTerrain(segments) {
   // 用真正的網格法線算坡度，比再取樣一次高度場便宜
   const nrm = geo.attributes.normal;
   for (let i = 0; i < n; i++) {
-    const x = pos.getX(i), z = pos.getZ(i);
+    const x = pos.getX(i) + ox, z = pos.getZ(i) + oz;
     const h = pos.getY(i);
     groundSample(x, z, h, 1 - nrm.getY(i), col, a4, b2);
     colors[i * 3] = col.r;

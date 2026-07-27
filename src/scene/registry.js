@@ -4,6 +4,8 @@
 // 這也是分圖改造在手機上唯一有機會跑起來的前提。
 export const MAP_LOADERS = {
   legacy_open: () => import('./maps/legacy_open.js'),
+  shrine: () => import('./maps/shrine.js'),
+  sando: () => import('./maps/sando.js'),
 };
 
 export const MAP_IDS = Object.keys(MAP_LOADERS);

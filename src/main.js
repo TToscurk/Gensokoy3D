@@ -97,10 +97,11 @@ const manager = new SceneManager({
   quality: () => QUALITY[state.quality],
   progress,
   hooks: {
-    /** 地圖卸載前：互動點與敵人不歸地圖持有，由這裡統一清乾淨 */
+    /** 地圖卸載前：互動點不歸地圖持有，卸圖時一律清掉。
+     *  要裝什麼回去由下一張圖的 applyEnv 決定 —— 判斷放在載入端，
+     *  卸載端不需要知道「下一張是誰」。 */
     beforeUnload() {
-      // 階段 1 的 legacy_open 沒有自己的互動點與 mob 配置 —— 舊世界的
-      // 建築、NPC、索道都還在持久層，這裡先不清，否則反而是行為改變。
+      clearInteractives();
     },
     placePlayer(spot) {
       if (!player) return;
@@ -114,6 +115,13 @@ const manager = new SceneManager({
       g?.reset();
       g?.warmup(player.pos);
     },
+    applyEnv(meta, map) {
+      // 自帶內容的圖（shrine / sando）用自己的；沒有的（legacy_open）
+      // 把開機時建好的持久層裝回去。
+      const ownsContent = !!(map?.colliders?.length || map?.interactives?.length);
+      if (ownsContent) applyMapContent(map);
+      else restorePersistentLayer();
+    },
     onEnter(mapId) {
       quests?.onEnter(mapId);
     },
@@ -125,6 +133,73 @@ const manager = new SceneManager({
     fadeIn(style) { return endTransition(style); },
   },
 });
+
+// ---------------------------------------------------------------------------
+// 持久層（legacy_open 專用）
+// ---------------------------------------------------------------------------
+// 舊世界的建築、碰撞盒、燈籠、互動點都在開機時建好，跨圖不重建。
+// 分圖切走再切回來時，得把這一份原樣裝回去。
+const persistent = { colliders: null, lanterns: null };
+
+/** 裝回舊世界的持久層：互動點、碰撞盒、燈籠、建築群、NPC。
+ *  互動點展開：室內每處拆「進入 / 離開」兩點，索道 WARP_NODES 配對互傳。
+ *  離開點掛在室內落點上（帶 y）—— 站在館外同一水平座標不會誤觸。 */
+function restorePersistentLayer() {
+  clearInteractives();
+  for (const inr of INTERIORS) {
+    registerInteractive({
+      id: inr.id + ':enter', label: `進入${inr.zh}`,
+      x: inr.enter.x, z: inr.enter.z, y: inr.enter.y,
+      to: { x: inr.inside.x, z: inr.inside.z, y: inr.inside.y },
+      zh: inr.zh, msg: '推門而入…',
+    });
+    registerInteractive({
+      id: inr.id + ':exit', label: `離開${inr.zh}`,
+      x: inr.inside.x, z: inr.inside.z, y: inr.inside.y,
+      to: { x: inr.exit.x, z: inr.exit.z, y: inr.exit.y },
+      zh: inr.zh, msg: '回到戶外…',
+    });
+  }
+  for (const w of WARP_NODES) {
+    const dest = WARP_NODES.find(v => v.id === w.to);
+    if (!dest) continue;
+    registerInteractive({
+      id: 'warp:' + w.id, label: w.label,
+      x: w.x, z: w.z, y: w.y,
+      to: { x: dest.x, z: dest.z, y: dest.y },
+      zh: dest.zh, msg: '索道行進中…',
+    });
+  }
+  if (persistent.colliders) {
+    state.colliders = persistent.colliders;
+    state.lanterns = persistent.lanterns;
+    if (player) player.colliders = state.colliders;
+  }
+  // 舊世界的建築群整組顯示回來
+  const st = scene.getObjectByName('structures');
+  if (st) st.visible = true;
+  npcs?.setVisible(true);
+}
+
+/**
+ * 套用現行地圖自帶的內容：碰撞盒、燈籠、互動點。
+ * 自帶內容的圖（shrine / sando）會把持久層的建築藏起來 ——
+ * 那是舊世界的東西，站在參道上不該撞到人間之里的牆。
+ */
+function applyMapContent(map) {
+  const st = scene.getObjectByName('structures');
+  if (st) st.visible = false;
+  // 舊世界的 34 位住民站在世界座標上，分圖是局部座標 —— 先整批藏起來。
+  // 階段 3 會改成每張圖只生成 meta.npcs 列的那幾位（§4 #8）。
+  npcs?.setVisible(false);
+
+  state.colliders = map.colliders || [];
+  state.lanterns = map.lanterns || [];
+  if (player) player.colliders = state.colliders;
+
+  clearInteractives();
+  for (const it of map.interactives || []) registerInteractive(it);
+}
 
 /** 把現行地圖的世界物件接回 state —— 切圖後這些參考全是新的。 */
 function syncWorldRefs() {
@@ -162,34 +237,10 @@ async function buildOnce() {
   state.clockMinute = hands?.getObjectByName('minute') || null;
   state.colliders = colliders;
   state.lanterns = lights;
+  persistent.colliders = colliders;
+  persistent.lanterns = lights;
 
-  // 互動點展開：室內每處拆「進入 / 離開」兩點，索道 WARP_NODES 配對互傳。
-  // 離開點掛在室內落點上（帶 y）—— 站在館外同一水平座標不會誤觸。
-  clearInteractives();
-  for (const inr of INTERIORS) {
-    registerInteractive({
-      id: inr.id + ':enter', label: `進入${inr.zh}`,
-      x: inr.enter.x, z: inr.enter.z, y: inr.enter.y,
-      to: { x: inr.inside.x, z: inr.inside.z, y: inr.inside.y },
-      zh: inr.zh, msg: '推門而入…',
-    });
-    registerInteractive({
-      id: inr.id + ':exit', label: `離開${inr.zh}`,
-      x: inr.inside.x, z: inr.inside.z, y: inr.inside.y,
-      to: { x: inr.exit.x, z: inr.exit.z, y: inr.exit.y },
-      zh: inr.zh, msg: '回到戶外…',
-    });
-  }
-  for (const w of WARP_NODES) {
-    const dest = WARP_NODES.find(v => v.id === w.to);
-    if (!dest) continue;
-    registerInteractive({
-      id: 'warp:' + w.id, label: w.label,
-      x: w.x, z: w.z, y: w.y,
-      to: { x: dest.x, z: dest.z, y: dest.y },
-      zh: dest.zh, msg: '索道行進中…',
-    });
-  }
+  restorePersistentLayer();
 
   // 燈籠光源池：只點亮離玩家最近的幾盞
   for (let i = 0; i < 8; i++) {

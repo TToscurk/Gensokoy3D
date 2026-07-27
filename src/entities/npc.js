@@ -43,6 +43,7 @@ export class NPCManager {
     this.scene = scene;
     this.npcs = [];
     this.nearest = null;
+    this.enabled = true;
 
     for (const spec of ROSTER) {
       const reg = REGION_BY_ID[spec.region];
@@ -75,8 +76,28 @@ export class NPCManager {
     }
   }
 
+
+  /** 整批啟用／停用。分圖改造用：站在參道上不該看到人間之里的居民
+   *  （SCENE_MANAGER_SPEC §4 #8 的過渡做法，階段 3 會改成每張圖只生成自己的）。
+   *
+   *  注意 `n.culled = null`：距離剔除是**邊緣觸發**的（只在跨越門檻那一幀
+   *  動作）。直接改 root.visible 而不重置這個栓，update() 會認為狀態沒變、
+   *  再也不修正 —— 遠處的住民就被鎖在可見狀態，切回舊世界時多出兩百多個
+   *  描邊 draw call。設成 null 強迫下一幀重新判定。 */
+  setVisible(on) {
+    this.enabled = on;
+    for (const n of this.npcs) {
+      n.culled = null;
+      n.root.visible = false;
+      n.plate.visible = false;
+    }
+    if (!on) this.nearest = null;
+  }
+
   update(t, playerPos, camera) {
     let best = null, bestD = TALK_RANGE;
+
+    if (this.enabled === false) { this.nearest = null; return null; }
 
     for (const n of this.npcs) {
       const d = n.pos.distanceTo(playerPos);

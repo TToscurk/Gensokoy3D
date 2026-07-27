@@ -255,12 +255,27 @@ function plantable(x, z) {
 }
 
 // ---------------------------------------------------------------------------
-export function buildVegetation(count) {
+/**
+ * @param count 目標棵數
+ * @param area  分圖用的下種範圍與規則，省略＝照舊世界整張種：
+ *   { cx, cz, half }        方形區域中心與半邊長
+ *   { halfX, halfZ }        長方形（狹長的參道用得到）
+ *   { heightFn }            自訂高度場（一張圖有自己的地形時必須給）
+ *   { plantableFn }         自訂可種性判斷
+ *   { speciesFn }           自訂樹種決定
+ * 沒覆寫的項目一律沿用舊世界那一套，換圖不會換長相。
+ */
+export function buildVegetation(count, area = null) {
   const group = new THREE.Group();
   group.name = 'vegetation';
 
   const rnd = mulberry32(20250724);
-  const half = WORLD.size * 0.46;
+  const cx = area?.cx ?? 0, cz = area?.cz ?? 0;
+  const half = area?.half ?? WORLD.size * 0.46;
+  const halfX = area?.halfX ?? half, halfZ = area?.halfZ ?? half;
+  const H = area?.heightFn || terrainHeight;
+  const canPlant = area?.plantableFn || plantable;
+  const pickSpecies = area?.speciesFn || speciesAt;
 
   // --- 1. 依樹種分桶 ---
   const buckets = {};
@@ -271,13 +286,13 @@ export function buildVegetation(count) {
   let placed = 0;
   while (placed < count && tries < maxTries) {
     tries++;
-    const x = (rnd() * 2 - 1) * half;
-    const z = (rnd() * 2 - 1) * half;
-    if (!plantable(x, z)) continue;
-    const sp = speciesAt(x, z, rnd);
+    const x = cx + (rnd() * 2 - 1) * halfX;
+    const z = cz + (rnd() * 2 - 1) * halfZ;
+    if (!canPlant(x, z)) continue;
+    const sp = pickSpecies(x, z, rnd);
     if (!sp) continue;
     buckets[sp].push({
-      x, z, y: terrainHeight(x, z), s: 0.68 + rnd() * 0.8, r: rnd() * Math.PI * 2,
+      x, z, y: H(x, z), s: 0.68 + rnd() * 0.8, r: rnd() * Math.PI * 2,
       // 小幅度傾斜（最多約 8°）：整片林子才不會像用尺量出來一樣，每棵都直挺挺立正
       tilt: (rnd() - 0.5) * 0.14, tiltDir: rnd() * Math.PI * 2,
     });

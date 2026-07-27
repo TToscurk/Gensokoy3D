@@ -2378,4 +2378,4 @@ export function buildStructureSet(ids) {
   return { root, colliders, lights, staticLights, interiors, warps };
 }
 
-export { MAT, makeHall, makePaperLantern, makeFence, makeStairs };
+export { MAT, initMats, makeHall, makePaperLantern, makeFence, makeStairs };
