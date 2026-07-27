@@ -1,7 +1,7 @@
 // 活體shader手術：reflectance 強制歸零 → 截圖；再整片紅色 → 截圖
 import { cdp } from './cdp.mjs';
 
-const TMP = 'C:/Users/B365/AppData/Local/Temp';
+const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
 const { evaljs, shot, close } = await cdp();
 
 // A: reflectance = 0

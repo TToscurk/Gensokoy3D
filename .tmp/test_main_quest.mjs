@@ -2,7 +2,7 @@
 // 真按 E 鍵對話 → 驗證 scene 進對話框、任務推進、日誌徽章，截圖留證。
 import { cdp } from './cdp.mjs';
 
-const TMP = 'C:/Users/B365/AppData/Local/Temp';
+const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
 const page = await cdp();
 const { send, evaljs, shot } = page;
 

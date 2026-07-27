@@ -1,7 +1,7 @@
 # 交接文件 — 幻想鄉 3D（Gensokyo Explorer）
 
 > 給接手的人（或 AI）看的。讀完這份 + `README.md` 就能上手。
-> 最後更新：**2026-07-27**（戰鬥系統與緣一機動力完工）。
+> 最後更新：**2026-07-27**（分圖改造：階段 1、2 完成，階段 3 遷了 7／17 張）。
 > 更早的輪次紀錄見文末〈歷史沿革〉。
 
 ---
@@ -13,7 +13,13 @@
 
 **34 位 NPC + 7 位可操作角色**（東方角色 + 原創穿越角色繼國緣一）、**17 個地區**、晝夜循環、
 步行／飛行／對話、分支任務系統、地圖與傳送、**日之呼吸十三型戰鬥系統**。
-目標硬體是 **GTX 1070 @ 1080p 穩 60fps**。
+
+**目前正在做「分圖改造」** —— 把一張 2400×2400 的大地形換成「多張獨立地圖 + 出入口串接」
+（楓之谷式）。**接手前必讀 `SCENE_MANAGER_SPEC.md`**，那份規格書裡有每個階段的完成紀錄、
+踩過的坑、以及還沒做的部分。下面〈分圖改造〉一節是速覽。
+
+目標硬體**已改成筆電內顯**（Intel Iris Xe / i5-1335U），所以 `config.js` 的
+`DEFAULT_QUALITY` 是 `'low'`。桌機（GTX 1070）在設定面板切回 `'高'` 仍是 60fps。
 
 ---
 
@@ -40,9 +46,14 @@ chrome --headless=new --remote-debugging-port=9223 --window-size=1600,900 \
 node .tmp/e2e_check.mjs 10
 ```
 
-判讀基準：boot OK、`game running: true`、**console 零錯誤**、高畫質 FPS 接近 60。
+判讀基準：boot OK、`game running: true`、**console 零錯誤**、FPS 接近 60。
 
-`.tmp/` 底下有 12 支回歸腳本，全部走同一套 CDP 工具 `.tmp/cdp.mjs`
+**這台機器的注意事項**：headless Chrome 在高畫質只有 8～14 FPS，多支腳本寫死
+`FPS ≥ 55` 會假 FAIL。預設畫質已是 `low`，低畫質下才跑得到 60 FPS、測試才有意義。
+`test_interact` **不重載頁面**，前一支測試留下的狀態會害它整套假 FAIL（見〈坑〉第 9 條）——
+`test_scene_churn` 因此在收尾時把遊戲切回 `legacy_open`。
+
+`.tmp/` 底下有 14 支回歸腳本，全部走同一套 CDP 工具 `.tmp/cdp.mjs`
 （提供 `evaljs` / `shot`）。**動到哪個系統就跑對應的那幾支**：
 
 | 腳本 | 項數 | 範圍 |
@@ -59,6 +70,8 @@ node .tmp/e2e_check.mjs 10
 | `test_fx.mjs` | 11 | 火星粒子、火龍飛行與清理 |
 | `test_mobility.mjs` | 12 | 跳躍高度、疾走速度、疾走動畫、音效 |
 | `test_crashguard.mjs` | 5 | 更新階段例外時畫面不能全黑 |
+| `test_portal.mjs` | 14 | **分圖**：連線圖、entry 定位、不彈跳、戰鬥中不觸發、draw call |
+| `test_scene_churn.mjs` | 5 | **分圖**：切 35 次不漏記憶體（geometries / textures / heap）|
 
 另有 `shot_*.mjs` 系列是截圖工具（不重載、沿用現場），`probe_*.mjs` 是數值探針。
 
@@ -68,19 +81,82 @@ node .tmp/e2e_check.mjs 10
 
 ---
 
-## 現況實測（2026-07-27）
+## 現況實測（2026-07-27，低畫質＝現在的預設）
 
 | 指標 | 數值 |
 |---|---|
-| FPS（高畫質） | 60 |
-| FPS / draw call（低畫質，**現在的預設**） | 60 / 86（約 55 萬三角形、42 張貼圖） |
-| draw call / 三角形（神社出生點） | 316 / 約 580 萬 |
-| draw call（魔法之森，戰鬥中） | 460～480 |
-| GPU 貼圖數 | 66 |
+| FPS | 60 |
+| draw call（舊世界 legacy_open，出生點） | 86 |
+| draw call（分圖，七張） | 35～45 |
+| 三角形 | 舊世界 55 萬 / 分圖 6～17 萬 |
+| GPU 貼圖 | 42～44 |
 | console 錯誤 | 0 |
-| 回歸測試 | 12 支全過，共 100+ 項 |
+| 回歸測試 | 14 支（原 12 支 + `test_portal` + `test_scene_churn`）|
+
+高畫質的舊數字（GTX 1070）：316 draw call、約 580 萬三角形、66 張貼圖。
 
 draw call 預算是這個專案真正的瓶頸（不是三角形數）。目前健康，但**加東西前先量**。
+
+---
+
+## 分圖改造（進行中，最重要的一節）
+
+**規格書：`SCENE_MANAGER_SPEC.md`。動手前讀完它，尤其 §1 的地圖契約與 §4 的風險清單。**
+
+### 現在長什麼樣
+
+```
+src/scene/
+  manager.js     場景生命週期、切換、過場順序（§5 不可調換）
+  registry.js    地圖清單（動態 import 延遲載入）+ 出入口雙向驗證
+  maps/
+    legacy_open.js  舊世界整包 —— 仍是**開機預設**，也是安全網
+    shrine / sando / village / forest / lake / sdm / bamboo
+    _template.js    新地圖樣板
+```
+
+連線圖：
+```
+shrine ↔ sando ↔ village ↔ forest ↔ bamboo
+                    ↕
+                   lake ↔ sdm
+```
+
+`legacy_open` 是孤島（沒有 portal），開機仍載它 —— 所以**現在打開遊戲看到的還是連在一起的舊世界**。
+按 `O` 開設定面板，傳送清單最上面的**藍框**按鈕才是真的換圖。
+
+### 遷一張圖的固定流程
+
+1. `buildStructureSet([地區id])` → `mergeStaticByMaterial(root, ['clock-hands','rope-cabin'])` → 平移回原點
+2. 碰撞盒／燈籠／除草區／室內互動點全部換算成局部座標（`toLocal`）
+3. 植被下種前 `setClearings(st.clearings)`（世界座標那份），建完 `setClearings(null)`
+4. `npcs` 只列 roster 裡 `region` 等於這張圖的角色（列錯會被守衛報錯）
+5. `buildTerrainSkirt(size/2, 1100, heightAt)` —— 遠景裙襬，不加會看到「場景外的白色」
+6. portal 成對定義，entry 與回程 trigger 至少隔 30m（不然會來回彈跳）
+
+### 三個「唯一真相」被換掉了
+
+- **地形高度**：不再直接叫 `terrainHeight()`。跟著玩家跑的系統（碰撞、相機、NPC、敵人、
+  草地、粒子）改讀 `groundHeight()`，manager 載圖時用 `setHeightField()` 換指標。
+  **建構 legacy_open 內容的程式仍直接用 `terrainHeight`** —— 這個切分不要弄混。
+- **除草區**：`clearings` 同樣改成可切換（`setClearings` / `captureClearings`），每張圖一份。
+- **所在地區**：分圖時「地區就是地圖本身」，`regionAt()` 只在 legacy_open 有意義。
+  見下面〈坑〉第 11 條。
+
+### 還沒做
+
+- 剩 10 張圖：妖怪之山系三張、香霖堂、無緣塚、太陽花田、無名之丘、命蓮寺、
+  異界三張（白玉樓／天界／彼岸，用 `style: 'gate'`）
+- **索道**要做成 `style: 'vehicle'` 的 portal（§1 已訂契約）—— 它跨兩張圖，
+  不是單張圖的動畫
+- `ui/mapview.js` 還是舊世界的俯視底圖，在分圖上是一片純綠（§4 #4，排最後）
+- 有些建築會擋路（舊世界就有的問題，使用者判定可接受）
+
+### 等使用者回報的檢查點
+
+**過場頻率會不會煩**（走多久碰到一次黑幕）。最短的一段是神社出生點到石段口 210m，
+疾走約 21 秒。這是唯一不能靠數字驗的部分，**他回報之前不要動下一批地圖** ——
+圖的大小要調的話，7 張時改比 17 張時改便宜得多。
 
 ---
 
@@ -105,12 +181,16 @@ src/
 
 **幾個「唯一真相」的位置**：
 
-- **地形高度**：`world/terrain.js` 的 `terrainHeight()`。植被落點、玩家碰撞、
-  相機避地全部吃它，改它等於改全世界。
+- **地形高度**：`world/terrain.js`。**分圖之後分成兩個**：
+  `terrainHeight()` 是舊世界的高度場（建構 legacy_open 內容的程式用它）；
+  `groundHeight()` 是「現在載著的那張圖」的（碰撞、相機、NPC、敵人、草地、粒子用它）。
+  改錯一個會讓玩家浮空或埋進地裡。
 - **畫質分級**：`config.js` 的 `QUALITY` 表。所有系統都從這裡讀。
 - **全域除錯掛鉤**：console 裡的 `window.__gensokyo`
-  （`renderer` / `scene` / `sky` / `player` / `combat` / `slashFX` / `mobs` / `quests` / `mapView`）。
-  所有測試腳本都靠它。
+  （`renderer` / `sky` / `player` / `combat` / `slashFX` / `mobs` / `quests` / `mapView`）。
+  所有測試腳本都靠它。**`scene` 指向「現行地圖的 group」**（切圖後會換人）；
+  要整個場景樹（含建築、NPC、燈光）用 `rootScene`。另有 `manager` / `map` / `mapId`。
+  直接換圖：`__gensokyo.manager.load('village')`。
 
 ### 主迴圈的結構（重要）
 
@@ -120,7 +200,8 @@ function loop() {
   frame();
 }
 function frame() {
-  try { update(); } catch (err) { reportCrash(err); }
+  // 載圖中跳過更新（會讀到半銷毀的物件），但照樣繪製
+  if (!manager.loading) { try { update(); } catch (err) { reportCrash(err); } }
   composer.render();                       // 不論更新成敗都要畫
   try { updateHUD(...); mapView?.frame(); } catch (err) { reportCrash(err); }
 }
@@ -131,6 +212,8 @@ function frame() {
    但畫面會全黑 —— 這個保險絲就是為了防它（見〈坑〉第 2 條）。
 2. **HUD 讀 `renderer.info` 必須在 render 之後**（`autoReset = false`，幀首手動 reset，
    在 render 前讀永遠是 0）。
+3. **`updateHUD` 刻意跑在 `manager.loading` 的守衛之外** —— 它是保險絲的一部分，
+   不要為了別的理由把它關進去。代價是它會在切圖途中被呼叫，見〈坑〉第 11 條。
 
 ---
 
@@ -231,15 +314,46 @@ controller 有預設值，沒填的角色零影響。緣一：一段跳 2.87m、
 
 ---
 
+11. **分圖之後「所在地區」有兩種意義，混用會讓任務在錯的圖觸發。**
+    `regionAt(x, z)` 只在 `legacy_open` 有意義；分圖的玩家座標是**局部的**，
+    拿去問它會得到完全不相干的答案（實測：站在神社圖的 (0,180)，
+    HUD 顯示「人間之里」）。而 `quests.onEnter` 是靠地區變化觸發的，
+    所以這不只是顯示錯。
+    修法是 `currentPlace()` 分流：分圖直接回傳 `manager.meta`，
+    分圖的 `onEnter` 由 manager 在載圖完成時發出。
+    **更難查的第二層**：切圖途中 `manager.id` 會短暫是 `null`，
+    把 `null` 也算成舊世界的話，那一瞬間會拿上一張圖的局部座標去問
+    `regionAt()`，每次切圖都多噴一個假的 `onEnter`。載圖中要沿用上一個地區，不要猜。
+
+12. **NPC 的距離剔除是「邊緣觸發的栓」**（`n.culled !== !visible` 才動作）。
+    直接改 `root.visible` 而不重置 `n.culled`，`update()` 會認為狀態沒變、
+    再也不修正 —— 遠處的住民被鎖在可見狀態，實測多出 264 個 draw call。
+    要整批開關請用 `NPCManager.setRoster()`，它會把栓設成 `null` 強迫重新判定。
+
+13. **`buildVegetation` 裡「固定位置的地景」（竹林、太陽花田、鈴蘭）不受下種範圍影響。**
+    分圖之後這是實打實的浪費：每張小圖都把整片竹林建一次，
+    而 instanced 網格是 `frustumCulled = false` 的 —— **看不見也照畫**。
+    已改成依範圍取捨，新增這類地景時記得比照辦理。
+
+14. **小圖一定要加遠景裙襬**（`buildTerrainSkirt`）。圖只有 400～600 公尺、
+    霧的遠端在 900，不補就會在霧遮住之前看到地形被切出硬邊，外面是空的。
+
 ## 不可違反的專案約束
 
 1. **符合東方 Project 原作設定**：角色住所、個性、口氣、地理相對位置都有考究，
    新內容也要遵守。
 2. **敘事主軸是繼國緣一**（原創穿越角色：「被史書抹去存在的人，而幻想鄉收容被遺忘之物」）。
    每位角色都有一組談論他的對話，新角色也必須有。對話文本用**高品質繁體中文**。
-   寫主線前先讀 `C:\Users\B365\OneDrive\桌面\緣一芙蘭朵路.txt`（使用者的設定聖經：
-   戰力天花板是「略輸靈夢」、感情線要靜謐成熟不戀愛劇）。
-3. **效能底線**：GTX 1070 @1080p 高畫質穩 60fps。
+   寫主線前先讀 `C:\Users\t0824\OneDrive\桌面\緣一芙蘭朵路.txt`（使用者的設定聖經，
+   15,827 行、343KB，**超過單次讀取上限，要分段讀**）。
+   三條不可動搖的線：①**緣一從不主動出手** —— 「戰力天花板略輸靈夢」的真意是
+   他不會跟靈夢打（原文那場他沒有拔刀，只用速度證明無害）；
+   ②對芙蘭的核心是「被看見」不是戀愛（「因為妳在努力忍住」「妳不是想破壞，妳是在求救」）；
+   ③題眼是「你把生命當作什麼了」，那是他唯一會動怒的事。
+   文件後段有大量跨界角色（藍染、貝阿朵莉切）與神格化設定，但使用者自己喊停過
+   「有點玩過頭了」—— 要不要進遊戲**先問**，那會改變專案性質。
+3. **效能底線**：目標機器現在是**筆電內顯（Intel Iris Xe）低畫質穩 60fps**；
+   桌機 GTX 1070 高畫質 60fps 仍是第二基準。
    心法是「**draw call 才是瓶頸，不是三角形數**」。
 4. **貼圖雙軌制**：任何新貼圖都必須有程序 canvas 備援，檔案缺席時專案仍要完整可跑
    （`core/textures.js` 的熱替換）。照片素材只用 CC0（全部來自 Poly Haven，
@@ -261,7 +375,8 @@ controller 有預設值，沒填的角色零影響。緣一：一段跳 2.87m、
 
 ## 待辦 / 可以接手的方向
 
-使用者的佇列順序是：地圖 → 動畫 → 主線 → mission AI。前兩棒已完工，所以：
+**現在的第一順位是分圖改造**（見上面那一節），而且卡在使用者的試玩檢查點。
+分圖做完之後，使用者原本的佇列是：
 
 1. **主線第二章** — 用 `start.after: 'main_ch1_nameless_blade'` 接。
    第一章只到「察覺」不開打；二章要開打的話，戰力與演出先回設定聖經確認天花板。
@@ -301,3 +416,7 @@ controller 有預設值，沒填的角色零影響。緣一：一段跳 2.87m、
   紋理＋霧之湖反射修復）、地圖系統、主線第一章、戰鬥系統雛形。
 - **第五輪**（2026-07-27）：拔刀系統、十三型各自的動作、刀光軌跡、火星與火龍、
   大招與 2 倍速、緣一機動力與疾走動畫、主迴圈保險絲。
+- **第六輪**（2026-07-27）：**分圖改造**。專案開始納入 git（`git init`，
+  tag `stage1-green` / `stage2-green`）。階段 1 骨架 + legacy_open、
+  階段 2 shrine/sando 互通、階段 3 已遷 7／17 張。預設畫質改成 low
+  （目標機器換成筆電內顯）。詳見 `SCENE_MANAGER_SPEC.md` 的各階段完成紀錄。

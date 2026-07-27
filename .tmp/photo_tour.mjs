@@ -78,7 +78,7 @@ for (const [name, x, z, yaw, time] of SHOTS) {
   })()`);
   await wait(2600);   // 等相機就位、晝夜插值收斂
   const shot = await send('Page.captureScreenshot', { format: 'png' });
-  writeFileSync(`C:/Users/B365/AppData/Local/Temp/tour_${name}.png`, Buffer.from(shot.data, 'base64'));
+  writeFileSync(`${(await import('os')).tmpdir()}/tour_${name}.png`, Buffer.from(shot.data, 'base64'));
   const stats = await evaljs(`window.__gensokyo.renderer.info.render.calls`);
   console.log(`shot ${name}  drawCalls=${stats}`);
 }

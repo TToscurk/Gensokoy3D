@@ -1,7 +1,7 @@
 // 湖面薰衣草色還在 —— 活體實驗：確認 patch、紅色 waterColor、隱藏對照
 import { cdp } from './cdp.mjs';
 
-const TMP = 'C:/Users/B365/AppData/Local/Temp';
+const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
 const { evaljs, shot, close } = await cdp();
 
 const info = await evaljs(`(() => {

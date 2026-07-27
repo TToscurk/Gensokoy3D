@@ -44,7 +44,7 @@ await evaljs(`window.__gensokyo.sky && (window.__gensokyo.sky.time = 600)`);
 await wait(400);
 const shot = await send('Page.captureScreenshot', { format: 'png' });
 const { writeFileSync } = await import('fs');
-writeFileSync(`C:/Users/B365/AppData/Local/Temp/shot_${name}.png`, Buffer.from(shot.data, 'base64'));
+writeFileSync(`${(await import('os')).tmpdir()}/shot_${name}.png`, Buffer.from(shot.data, 'base64'));
 console.log('saved shot_' + name + '.png');
 ws.close();
 process.exit(0);

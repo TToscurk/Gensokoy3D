@@ -2,7 +2,7 @@
 // 點人間之里傳送 → 找緣一開主線 → 大地圖出現任務金點 → 效能
 import { cdp } from './cdp.mjs';
 
-const TMP = 'C:/Users/B365/AppData/Local/Temp';
+const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
 const page = await cdp();
 const { send, evaljs, shot } = page;
 const wait = ms => new Promise(r => setTimeout(r, ms));

@@ -1,7 +1,7 @@
 // 截斬弧特寫：高視角看扇形月牙（用參之型・烈日紅鏡，110° 扇形最像劍氣）
 import { cdp } from './cdp.mjs';
 
-const TMP = 'C:/Users/B365/AppData/Local/Temp';
+const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
 const page = await cdp();
 const { send, evaljs, shot } = page;
 const wait = ms => new Promise(r => setTimeout(r, ms));

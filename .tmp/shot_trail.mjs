@@ -1,7 +1,7 @@
 // 刀光外觀：出招後在斬擊尖峰的那一格截圖（不重載，沿用現場）
 import { cdp } from './cdp.mjs';
 
-const TMP = 'C:/Users/B365/AppData/Local/Temp';
+const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
 const page = await cdp();
 const { evaljs, shot } = page;
 const wait = ms => new Promise(r => setTimeout(r, ms));

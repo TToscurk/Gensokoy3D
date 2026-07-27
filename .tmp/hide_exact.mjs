@@ -1,7 +1,7 @@
 // 精確實驗：raycast 找到弧線命中的那個 mesh，藏「它本人」再截圖
 import { cdp } from './cdp.mjs';
 
-const TMP = 'C:/Users/B365/AppData/Local/Temp';
+const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
 const { evaljs, shot, close } = await cdp();
 
 // 先列出所有 BoxGeometry+ShaderMaterial 的 scene 直接子節點

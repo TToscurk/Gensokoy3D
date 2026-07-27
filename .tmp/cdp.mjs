@@ -3,7 +3,7 @@
 //   import { cdp } from './cdp.mjs';
 //   const page = await cdp();
 //   await page.evaljs(`window.__gensokyo.player.teleport(-592, -666, 353.2); undefined`);
-//   await page.shot('C:/Users/B365/AppData/Local/Temp/x.png');
+//   await page.shot(`${os.tmpdir()}/x.png`);   // 目錄不存在時 shot() 會自動落回本機 temp
 //   page.close();
 const CDP_PORT = 9223;
 

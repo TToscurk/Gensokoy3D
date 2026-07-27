@@ -1,7 +1,7 @@
 // 天空弧線實驗：(1) 只留 sky box 截圖 (2) uniforms 重置成 three 預設值再截圖
 import { cdp } from './cdp.mjs';
 
-const TMP = 'C:/Users/B365/AppData/Local/Temp';
+const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
 const { evaljs, shot, close } = await cdp();
 
 // 目前 uniform 值

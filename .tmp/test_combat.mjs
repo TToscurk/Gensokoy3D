@@ -2,7 +2,7 @@
 // 連出 13 招驗證型輪迴、命中/擊殺/連擊、截圖特效、FPS
 import { cdp } from './cdp.mjs';
 
-const TMP = 'C:/Users/B365/AppData/Local/Temp';
+const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
 const page = await cdp();
 const { send, evaljs, shot } = page;
 const wait = ms => new Promise(r => setTimeout(r, ms));
