@@ -611,8 +611,28 @@ const GRASS_H = 0.52;
 // 除草區：建築模組登記的長方形（街道、廣場、參道），草不長在裡面。
 // GrassField 會隨玩家移動持續重鋪磚塊，所以建構順序無所謂——
 // 建築在初始化期間登記完，之後每次 _fill 都會查到。
-const clearings = [];
+// 除草區（街道、廣場、參道上不長草）。
+//
+// 分圖之後這不能再是單一全域清單：每張圖有自己的座標系，
+// 舊世界的除草區記的是世界座標，寫進小圖只會在錯誤的地方挖洞。
+// 所以改成「現行清單」可切換 —— 和高度場同一個模式。
+const worldClearings = [];
+let clearings = worldClearings;
+
 export function addClearing(x, z, hw, hd) { clearings.push({ x, z, hw, hd }); }
+
+/** manager 載圖時呼叫。傳 null 還原成舊世界那一份。 */
+export function setClearings(list) { clearings = list || worldClearings; }
+
+/** 收集一段建構期間登記的除草區，收完把原本的清單裝回去。
+ *  分圖用：一張圖的除草區歸它自己，不污染別人。 */
+export function captureClearings(fn) {
+  const saved = clearings;
+  const own = [];
+  clearings = own;
+  try { fn(); } finally { clearings = saved; }
+  return own;
+}
 
 export class GrassField {
   constructor(total, tiles = 8, tileSize = 26) {

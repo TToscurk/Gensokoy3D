@@ -81,6 +81,10 @@ const errs = await evaljs(`window.__e.length`);
 ck('30 次切換無 runtime 錯誤', errs === 0, `err=${errs}`);
 ck('最後仍能正常繪製', await evaljs(`window.__gensokyo.renderer.info.render.calls`) > 0);
 
+// 收尾：把遊戲留在 legacy_open。
+// test_interact 不重載頁面（HANDOFF〈坑〉第 9 條），留在小圖上會害它整套假 FAIL。
+await load('legacy_open');
+
 console.log(`\n---- ${pass} PASS / ${fail} FAIL ----`);
 page.close();
 process.exit(fail ? 1 : 0);

@@ -41,57 +41,99 @@ function nameplate(zh, en) {
 export class NPCManager {
   constructor(scene) {
     this.scene = scene;
-    this.npcs = [];
+    this.npcs = [];            // 現在這張圖上的住民
     this.nearest = null;
     this.enabled = true;
+    // 建好的角色快取（id → 記錄）。分圖切換時重用，不重建 ——
+    // 一個角色的程序式建模不便宜，每次切圖重造 34 位會讓過場卡住。
+    this._cache = new Map();
+    this._origin = { x: 0, z: 0 };
+  }
+
+  /** 建一位（或從快取取回）。位置在世界座標，之後由 setRoster 換算。 */
+  _ensure(spec) {
+    let rec = this._cache.get(spec.id);
+    if (rec) return rec;
+
+    const root = buildCharacter(spec);
+    root.rotation.y = spec.face ?? 0;
+    const plate = nameplate(spec.zh, spec.en);
+    const outlines = [];
+    root.traverse(o => { if (o.name === 'outline') outlines.push(o); });
+
+    rec = {
+      spec, root, plate, outlines,
+      pos: new THREE.Vector3(),
+      talkIndex: 0,
+      baseYaw: spec.face ?? 0,
+    };
+    this._cache.set(spec.id, rec);
+    return rec;
+  }
+
+  /**
+   * 換上這張圖的住民（SCENE_MANAGER_SPEC §4 #8）。
+   *
+   * @param ids    要出場的角色 id 陣列；null = 全員（legacy_open 用）
+   * @param origin 這張圖的原點在世界座標的位置。角色的家寫在 roster 裡
+   *               （地區座標 + 位移，都是世界座標），減掉原點就是局部座標。
+   *
+   * 落地高度用 groundHeight()，所以**必須在 manager 換好高度場之後呼叫** ——
+   * 早一步的話整批人會站在上一張圖的地面高度上。
+   */
+  setRoster(ids, origin = { x: 0, z: 0 }, bounds = 0) {
+    this._origin = origin;
+    const want = ids ? new Set(ids) : null;
+
+    // 名單裡有 roster 沒有的 id = 打錯字，靜靜消失最難查
+    if (want) {
+      const known = new Set(ROSTER.map(s => s.id));
+      for (const id of want) {
+        if (!known.has(id)) console.error(`[npc] 名單裡沒有這個角色：${id}`);
+      }
+    }
+
+    // 先把上一張圖的人請下場
+    for (const n of this.npcs) {
+      this.scene.remove(n.root);
+      this.scene.remove(n.plate);
+    }
+    this.npcs = [];
+    this.nearest = null;
 
     for (const spec of ROSTER) {
+      if (want && !want.has(spec.id)) continue;
       const reg = REGION_BY_ID[spec.region];
       if (!reg) continue;
 
-      const x = reg.x + spec.offset[0];
-      const z = reg.z + spec.offset[1];
+      const x = reg.x + spec.offset[0] - origin.x;
+      const z = reg.z + spec.offset[1] - origin.z;
       const ground = Math.max(groundHeight(x, z), WORLD.waterLevel);
       const y = ground + (spec.float ? (spec.floatY ?? 0.8) : 0);
 
-      const root = buildCharacter(spec);
-      root.position.set(x, y, z);
-      root.rotation.y = spec.face ?? 0;
-      scene.add(root);
+      const rec = this._ensure(spec);
+      rec.root.position.set(x, y, z);
+      rec.plate.position.set(x, y + 2.35, z);
+      rec.pos.set(x, y, z);
+      rec.root.rotation.y = rec.baseYaw;
+      // 距離剔除是邊緣觸發的，換圖後強迫下一幀重新判定
+      rec.culled = null;
+      rec.outlineOn = null;
+      rec.root.visible = false;
+      rec.plate.visible = false;
 
-      const plate = nameplate(spec.zh, spec.en);
-      plate.position.set(x, y + 2.35, z);
-      scene.add(plate);
+      // 住在別區的人被列進來時，換算後會落在圖外很遠的地方 ——
+      // 畫面上什麼都沒有，最難查。直接報出來。
+      if (bounds && (Math.abs(x) > bounds || Math.abs(z) > bounds)) {
+        console.error(`[npc] ${spec.id}（家在 ${spec.region}）落在圖外 ` +
+                      `(${x.toFixed(0)}, ${z.toFixed(0)})，半徑上限 ${bounds}`);
+      }
 
-      // 描邊在遠處看不出來，卻是實打實的 draw call —— 收集起來按距離開關
-      const outlines = [];
-      root.traverse(o => { if (o.name === 'outline') outlines.push(o); });
-
-      this.npcs.push({
-        spec, root, plate, outlines,
-        pos: new THREE.Vector3(x, y, z),
-        talkIndex: 0,
-        baseYaw: spec.face ?? 0,
-      });
+      this.scene.add(rec.root);
+      this.scene.add(rec.plate);
+      this.npcs.push(rec);
     }
-  }
-
-
-  /** 整批啟用／停用。分圖改造用：站在參道上不該看到人間之里的居民
-   *  （SCENE_MANAGER_SPEC §4 #8 的過渡做法，階段 3 會改成每張圖只生成自己的）。
-   *
-   *  注意 `n.culled = null`：距離剔除是**邊緣觸發**的（只在跨越門檻那一幀
-   *  動作）。直接改 root.visible 而不重置這個栓，update() 會認為狀態沒變、
-   *  再也不修正 —— 遠處的住民就被鎖在可見狀態，切回舊世界時多出兩百多個
-   *  描邊 draw call。設成 null 強迫下一幀重新判定。 */
-  setVisible(on) {
-    this.enabled = on;
-    for (const n of this.npcs) {
-      n.culled = null;
-      n.root.visible = false;
-      n.plate.visible = false;
-    }
-    if (!on) this.nearest = null;
+    return this.npcs.length;
   }
 
   update(t, playerPos, camera) {

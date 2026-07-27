@@ -178,7 +178,7 @@ function restorePersistentLayer() {
   // 舊世界的建築群整組顯示回來
   const st = scene.getObjectByName('structures');
   if (st) st.visible = true;
-  npcs?.setVisible(true);
+  npcs?.setRoster(null);
 }
 
 /**
@@ -189,9 +189,9 @@ function restorePersistentLayer() {
 function applyMapContent(map) {
   const st = scene.getObjectByName('structures');
   if (st) st.visible = false;
-  // 舊世界的 34 位住民站在世界座標上，分圖是局部座標 —— 先整批藏起來。
-  // 階段 3 會改成每張圖只生成 meta.npcs 列的那幾位（§4 #8）。
-  npcs?.setVisible(false);
+  // 這張圖只上自己列的住民，位置照地圖原點換算成局部座標
+  npcs?.setRoster(map.npcs || [], map.origin || { x: 0, z: 0 },
+                  (manager.meta?.size || 0) / 2);
 
   state.colliders = map.colliders || [];
   state.lanterns = map.lanterns || [];
@@ -263,6 +263,8 @@ async function buildOnce() {
 
   await progress(84, '召喚幻想鄉的住民…');
   npcs = new NPCManager(scene);
+  // 舊世界＝全員到齊。分圖之後每張圖只上自己那幾位（§4 #8）。
+  npcs.setRoster(null);
 
   await progress(92, '散開櫻花與人魂…');
   petals = new Petals(q.petals);

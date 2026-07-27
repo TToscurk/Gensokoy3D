@@ -108,9 +108,9 @@ export async function build(ctx) {
   }
   group.add(terrain);
 
-  // 除草區（clearings）目前是全域清單、記世界座標，這張圖是局部座標，
-  // 寫進去只會污染 legacy_open 的植被。樹已經由 plantableHere() 讓開路面；
-  // 草地的讓路要等 clearings 改成每張圖各自一份（記在規格書階段 3）。
+  // 這張圖自己的除草區（局部座標）：石板路上不長草。
+  // clearings 現在是每張圖一份，manager 載圖時換上 —— 不會再污染舊世界。
+  const clearings = [{ x: 0, z: 0, hw: PATH_HALF + 2, hd: LEN / 2 }];
 
   // --- 鳥居：頂端一座、中段一座 ---------------------------------------
   for (const [z, s] of [[-250, 1.2], [40, 1.0]]) {
@@ -161,10 +161,12 @@ export async function build(ctx) {
   return {
     group,
     heightAt,
+    origin: { x: R.x, z: R.z - 475 },
     colliders,
     lanterns,
     staticLights: [],
     interactives: [],
+    clearings,
     portals,
     npcs: [],
     mobs: [],

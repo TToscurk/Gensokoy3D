@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import * as BGU from 'three/addons/utils/BufferGeometryUtils.js';
 import { terrainHeight } from './terrain.js';
-import { addClearing } from './vegetation.js';
+import { addClearing, captureClearings } from './vegetation.js';
 import { REGION_BY_ID, WORLD, RIVER, CRATER_LAKE } from '../config.js';
 import { mulberry32 } from '../core/noise.js';
 import {
@@ -2366,16 +2366,19 @@ export function buildStructureSet(ids) {
   root.name = 'structures:' + ids.join('+');
   const colliders = [], lights = [], staticLights = [];
 
-  for (const id of ids) {
-    const fn = BUILDERS[id];
-    if (!fn) { console.error('[structures] 沒有這個地區的建築：' + id); continue; }
-    root.add(fn(colliders, lights, staticLights));
-  }
+  // 除草區同樣收成這張圖自己的一份（世界座標，呼叫端負責換算）
+  const clearings = captureClearings(() => {
+    for (const id of ids) {
+      const fn = BUILDERS[id];
+      if (!fn) { console.error('[structures] 沒有這個地區的建築：' + id); continue; }
+      root.add(fn(colliders, lights, staticLights));
+    }
+  });
 
   const interiors = INTERIORS.splice(0), warps = WARP_NODES.splice(0);
   INTERIORS.push(...savedI);
   WARP_NODES.push(...savedW);
-  return { root, colliders, lights, staticLights, interiors, warps };
+  return { root, colliders, lights, staticLights, interiors, warps, clearings };
 }
 
 export { MAT, initMats, makeHall, makePaperLantern, makeFence, makeStairs };

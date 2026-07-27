@@ -4,6 +4,7 @@
 // 它只負責「世界是怎麼被建構與銷毀的」，以及過場順序不可被打亂。
 import { loadMapModule, validateGraph } from './registry.js';
 import { setHeightField } from '../world/terrain.js';
+import { setClearings } from '../world/vegetation.js';
 
 export class SceneManager {
   /**
@@ -104,6 +105,9 @@ export class SceneManager {
       // 指標一換，整個世界的「地面在哪」就換成這張圖說了算。
       // 必須在放置玩家之前 —— teleport 會用它算落地高度。
       setHeightField(map.heightAt);
+      // 除草區同理：草地的 _fill 讀「現行清單」，記錯座標系就會在
+      // 錯誤的地方挖洞。沒有自己那份的圖（legacy_open）傳 null 用舊世界的。
+      setClearings(map.clearings || null);
 
       // 6. 放置玩家（清速度與慣性由 hook 負責）
       if (opts.place !== false) {
@@ -139,8 +143,10 @@ export class SceneManager {
     this.map = null;
     this.mod = null;
     this.id = null;
-    // 沒有地圖時高度場還原成舊世界，避免呼叫端讀到已銷毀地圖的閉包
+    // 沒有地圖時高度場與除草區都還原成舊世界，
+    // 避免呼叫端讀到已銷毀地圖的閉包
     setHeightField(null);
+    setClearings(null);
   }
 
   /** 用目前的畫質重建同一張圖，玩家留在原地（完全不碰玩家狀態）。 */

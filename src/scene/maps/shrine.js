@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { REGION_BY_ID } from '../../config.js';
 import { buildTerrain, terrainHeight } from '../../world/terrain.js';
-import { buildVegetation, GrassField } from '../../world/vegetation.js';
+import { buildVegetation, GrassField, setClearings } from '../../world/vegetation.js';
 import { buildStructureSet } from '../../world/structures.js';
 import { Atmosphere } from '../../fx/atmosphere.js';
 
@@ -77,6 +77,8 @@ export async function build(ctx) {
 
   const toLocal = o => ({ ...o, x: o.x - ORIGIN.x, z: o.z - ORIGIN.z });
   const colliders = st.colliders.map(toLocal);
+  // 除草區也要換算 —— 記錯座標系的話草會長在石階上、真正的空地卻是禿的
+  const clearings = st.clearings.map(toLocal);
   const lanterns = st.lights.map(toLocal);
   const staticLights = st.staticLights.map(l => {
     l.position.x -= ORIGIN.x;
@@ -104,9 +106,13 @@ export async function build(ctx) {
   // 所以看起來的疏密跟改造前一樣。
   const density = q.trees / (2400 * 0.92) ** 2;
   const trees = Math.round(density * meta.size ** 2);
+  // 植被的 plantable() 讀「現行除草區清單」。這張圖的除草區是世界座標
+  // （還沒換算前的 st.clearings），而下種也在世界座標，兩邊一致。
+  setClearings(st.clearings);
   const vegetation = buildVegetation(trees, {
     cx: ORIGIN.x, cz: ORIGIN.z, half: meta.size / 2,
   });
+  setClearings(null);
   vegetation.position.set(-ORIGIN.x, 0, -ORIGIN.z);
   group.add(vegetation);
 
@@ -123,12 +129,16 @@ export async function build(ctx) {
   return {
     group,
     heightAt,
+    origin: ORIGIN,
     colliders,
     lanterns,
     staticLights,
     interactives,
+    clearings,
     portals,
-    npcs: ['reimu', 'marisa', 'suika'],
+    // 住在這張圖上的人（roster 的 region 欄位說了算）。
+    // 不要寫別區的住民 —— 他們的座標會被換算成離譜的地方。
+    npcs: ['reimu', 'yukari'],
     mobs: [],
     terrain, vegetation, grass, atmosphere,
 
