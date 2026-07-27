@@ -118,7 +118,11 @@ const manager = new SceneManager({
     applyEnv(meta, map) {
       // 自帶內容的圖（shrine / sando）用自己的；沒有的（legacy_open）
       // 把開機時建好的持久層裝回去。
-      const ownsContent = !!(map?.colliders?.length || map?.interactives?.length);
+      // 有些圖沒有建築也沒有互動點（霧之湖），但它仍然是一張自給自足的圖 ——
+      // 靠數量推斷會把它誤判成 legacy_open，把舊世界的持久層裝回來。
+      // 所以地圖可以用 ownsContent 明講。
+      const ownsContent = map?.ownsContent
+        ?? !!(map?.colliders?.length || map?.interactives?.length);
       if (ownsContent) applyMapContent(map);
       else restorePersistentLayer();
     },

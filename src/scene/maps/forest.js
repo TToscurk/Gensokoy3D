@@ -1,10 +1,8 @@
-// 人間之里 —— 階段 3 遷移的第一張圖。
+// 魔法之森 —— 階段 3 遷移的第二張圖。
 //
-// 遷移判準（階段 2 定下的）：能切就切，切出來不好走就自己造。
-// 人間之里是被地形壓平過的台地，切出來就能走，所以照 shrine 的做法切。
-//
-// 座標系：局部座標，原點在里的中心。地貌照世界座標取樣，
-// 所以街廓、田壟、町屋的相對位置跟舊世界完全一致。
+// 判準同前：森林是既有地形上長出來的，切出來就能走，所以直接切。
+// 這張圖的性格全在植被上 —— 扭曲的暗樹（gnarled）成片，
+// 樹種決定仍走 speciesAt() 那套群落雜訊，跟舊世界長得一樣。
 import * as THREE from 'three';
 import { REGION_BY_ID } from '../../config.js';
 import { buildTerrain, terrainHeight } from '../../world/terrain.js';
@@ -13,15 +11,15 @@ import { buildStructureSet } from '../../world/structures.js';
 import { mergeStaticByMaterial } from '../../core/optimize.js';
 import { Atmosphere } from '../../fx/atmosphere.js';
 
-const R = REGION_BY_ID.village;
+const R = REGION_BY_ID.forest;
 
 export const ORIGIN = { x: R.x, z: R.z };
 
 export const meta = {
-  id: 'village',
-  zh: '人間之里',
-  en: 'HUMAN VILLAGE',
-  size: 480,                       // 里的半徑 205，留一圈田園與外圍
+  id: 'forest',
+  zh: '魔法之森',
+  en: 'FOREST OF MAGIC',
+  size: 560,                       // 森林半徑 250，外圍留一圈過渡
   spawn: { x: 0, z: 40, facing: Math.PI },
   fog: R.fog,
   accent: R.accent,
@@ -30,43 +28,19 @@ export const meta = {
 };
 
 export const entries = {
-  // 從參道下來 —— 站在里的北緣，面向里中心
-  from_sando: { x: 0, z: -190, facing: Math.PI },
-  // 從森林回來 —— 站在里的西南緣，面向里中心
-  from_forest: { x: -150, z: 186, facing: Math.PI * -0.25 },
-  // 從湖回來 —— 站在里的西北緣
-  from_lake: { x: -160, z: -140, facing: Math.PI * 0.75 },
+  // 從里過來 —— 站在森林的東北緣，面向森林深處
+  from_village: { x: 150, z: -186, facing: Math.PI * 0.75 },
   default: meta.spawn,
 };
 
 export const portals = [
   {
-    id: 'village_to_sando',
-    to: 'sando',
-    entry: 'from_village',
-    // 里的北緣：往北出了村口就是上山的參道
-    trigger: { x: 0, z: -220, r: 10 },
-    label: '往參道',
-    style: 'walk',
-    condition: null,
-  },
-  {
-    id: 'village_to_forest',
-    to: 'forest',
-    entry: 'from_village',
-    // 西南緣：里的外圍田園再過去就是魔法之森
-    trigger: { x: -172, z: 212, r: 12 },
-    label: '往魔法之森',
-    style: 'walk',
-    condition: null,
-  },
-  {
-    id: 'village_to_lake',
-    to: 'lake',
-    entry: 'from_village',
-    // 西北緣：出了里往北就是霧之湖
-    trigger: { x: -180, z: -160, r: 12 },
-    label: '往霧之湖',
+    id: 'forest_to_village',
+    to: 'village',
+    entry: 'from_forest',
+    // 東北緣：出了森林就是往里的方向
+    trigger: { x: 172, z: -212, r: 12 },
+    label: '往人間之里',
     style: 'walk',
     condition: null,
   },
@@ -79,19 +53,15 @@ export function heightAt(x, z) {
 export async function build(ctx) {
   const { quality: q, progress } = ctx;
   const group = new THREE.Group();
-  group.name = 'map:village';
+  group.name = 'map:forest';
 
-  await progress?.(20, '整平里的台地…');
+  await progress?.(20, '鋪開森林地表…');
   const seg = Math.max(48, Math.min(256, Math.round(meta.size / 4)));
   const terrain = buildTerrain(seg, { size: meta.size, ox: ORIGIN.x, oz: ORIGIN.z });
   group.add(terrain);
 
-  // 建築排在植被之前：町屋、街道、廣場會登記除草區，
-  // 植被的 plantable() 讀的就是那份清單，順序反了會長草在石板路上。
-  await progress?.(50, '搭起町屋與市集…');
-  const st = buildStructureSet(['village']);
-  // 建築完全靜態 —— 依材質合併成少數大網格，跟舊世界同一套心法。
-  // 必須在平移之前做：合併會把世界矩陣烘進頂點。
+  await progress?.(45, '搭起魔理沙邸…');
+  const st = buildStructureSet(['forest']);
   mergeStaticByMaterial(st.root, ['clock-hands', 'rope-cabin']);
   st.root.position.set(-ORIGIN.x, 0, -ORIGIN.z);
   group.add(st.root);
@@ -121,22 +91,24 @@ export async function build(ctx) {
     });
   }
 
-  await progress?.(70, '種下里外的雜木…');
+  await progress?.(70, '長出扭曲的暗樹…');
+  // 森林的樹比別處密（舊世界也是，靠 speciesAt 的森林分支），
+  // 這裡的密度基準沿用全域值，讓分佈與舊世界一致。
   const density = q.trees / (2400 * 0.92) ** 2;
-  // 下種與 plantable() 都在世界座標，所以先換上這張圖的除草區（換算前那份）
   setClearings(st.clearings);
-  const vegetation = buildVegetation(Math.round(density * meta.size ** 2), {
+  const vegetation = buildVegetation(Math.round(density * meta.size ** 2 * 1.6), {
     cx: ORIGIN.x, cz: ORIGIN.z, half: meta.size / 2,
   });
   setClearings(null);
   vegetation.position.set(-ORIGIN.x, 0, -ORIGIN.z);
   group.add(vegetation);
 
-  await progress?.(85, '鋪上草原…');
+  await progress?.(85, '鋪上林地草叢…');
   const grass = q.grass > 0 ? new GrassField(Math.round(q.grass * 0.6)) : null;
   if (grass) group.add(grass.mesh);
 
-  const atmosphere = new Atmosphere(Math.round(q.clouds * 0.5), Math.round(q.mist * 0.5));
+  // 魔法之森是全幻想鄉霧最濃的地方 —— 雲少、霧多
+  const atmosphere = new Atmosphere(Math.round(q.clouds * 0.3), Math.round(q.mist * 0.9));
   group.add(atmosphere.group);
 
   return {
@@ -149,8 +121,7 @@ export async function build(ctx) {
     interactives,
     clearings,
     portals,
-    // roster 的 region 欄位說了算：慧音、緣一、阿福婆、里的小孩
-    npcs: ['keine', 'yoriichi', 'dangoBaa', 'villageKid'],
+    npcs: ['marisa', 'rumia'],
     mobs: [],
     terrain, vegetation, grass, atmosphere,
 

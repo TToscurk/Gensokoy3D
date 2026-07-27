@@ -42,17 +42,23 @@ const load = async (id) => {
   await wait(700);
 };
 
-// 先切一輪暖機：第一次載入會建共用資源（貼圖、材質、圖集），
+// 走完整條路的循環。霧之湖帶反射水面（RenderTarget），
+// 只在 shrine/sando 之間來回是測不到那個洩漏來源的（規格書 §4 #12）。
+const CHAIN = ['shrine', 'sando', 'village', 'forest', 'lake'];
+
+// 先把每張圖各載一次暖機：第一次載入會建共用資源（貼圖、材質、圖集），
 // 那些是刻意不釋放的，不先暖機會把它們算進「成長」。
-await load('shrine');
-await load('sando');
-await load('shrine');
+for (const id of CHAIN) await load(id);
+// 基準必須跟後面的取樣停在同一張圖上 —— 每張圖的幾何體數本來就不同，
+// 拿霧之湖的基準去比神社的取樣，會把「圖不一樣」誤讀成「洩漏」。
+// 30 次循環每 10 次取樣，10 % 5 == 0，所以取樣點永遠是 CHAIN[0]。
+await load(CHAIN[0]);
 const base = await sample();
 console.log('基準  ', JSON.stringify(base));
 
 const marks = [];
 for (let i = 1; i <= 30; i++) {
-  await load(i % 2 ? 'sando' : 'shrine');
+  await load(CHAIN[i % CHAIN.length]);
   if (i % 10 === 0) {
     const s = await sample();
     marks.push({ i, ...s });

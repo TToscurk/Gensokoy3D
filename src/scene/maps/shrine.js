@@ -10,6 +10,7 @@ import { REGION_BY_ID } from '../../config.js';
 import { buildTerrain, terrainHeight } from '../../world/terrain.js';
 import { buildVegetation, GrassField, setClearings } from '../../world/vegetation.js';
 import { buildStructureSet } from '../../world/structures.js';
+import { mergeStaticByMaterial } from '../../core/optimize.js';
 import { Atmosphere } from '../../fx/atmosphere.js';
 
 const R = REGION_BY_ID.shrine;
@@ -72,6 +73,9 @@ export async function build(ctx) {
   await progress?.(45, '重建拜殿與鳥居…');
   const st = buildStructureSet(['shrine']);
   // builder 產出的一切都在世界座標，整組平移回這張圖的原點
+  // 建築完全靜態 —— 依材質合併成少數大網格，跟舊世界同一套心法。
+  // 必須在平移之前做：合併會把世界矩陣烘進頂點。
+  mergeStaticByMaterial(st.root, ['clock-hands', 'rope-cabin']);
   st.root.position.set(-ORIGIN.x, 0, -ORIGIN.z);
   group.add(st.root);
 

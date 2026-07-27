@@ -7,6 +7,8 @@ export const MAP_LOADERS = {
   shrine: () => import('./maps/shrine.js'),
   sando: () => import('./maps/sando.js'),
   village: () => import('./maps/village.js'),
+  forest: () => import('./maps/forest.js'),
+  lake: () => import('./maps/lake.js'),
 };
 
 export const MAP_IDS = Object.keys(MAP_LOADERS);
