@@ -44,7 +44,7 @@ const load = async (id) => {
 
 // 走完整條路的循環。霧之湖帶反射水面（RenderTarget），
 // 只在 shrine/sando 之間來回是測不到那個洩漏來源的（規格書 §4 #12）。
-const CHAIN = ['shrine', 'sando', 'village', 'forest', 'lake'];
+const CHAIN = ['shrine', 'sando', 'village', 'forest', 'lake', 'sdm', 'bamboo'];
 
 // 先把每張圖各載一次暖機：第一次載入會建共用資源（貼圖、材質、圖集），
 // 那些是刻意不釋放的，不先暖機會把它們算進「成長」。
@@ -57,9 +57,9 @@ const base = await sample();
 console.log('基準  ', JSON.stringify(base));
 
 const marks = [];
-for (let i = 1; i <= 30; i++) {
+for (let i = 1; i <= 35; i++) {
   await load(CHAIN[i % CHAIN.length]);
-  if (i % 10 === 0) {
+  if (i % CHAIN.length === 0) {
     const s = await sample();
     marks.push({ i, ...s });
     console.log(`第 ${String(i).padStart(2)} 次`, JSON.stringify(s));
@@ -84,7 +84,7 @@ if (base.heapMB === null) {
 }
 
 const errs = await evaljs(`window.__e.length`);
-ck('30 次切換無 runtime 錯誤', errs === 0, `err=${errs}`);
+ck('35 次切換無 runtime 錯誤', errs === 0, `err=${errs}`);
 ck('最後仍能正常繪製', await evaljs(`window.__gensokyo.renderer.info.render.calls`) > 0);
 
 // 收尾：把遊戲留在 legacy_open。

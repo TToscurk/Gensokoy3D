@@ -1,8 +1,8 @@
-// 魔法之森 —— 階段 3 遷移的第二張圖。
+// 迷途竹林／永遠亭 —— 階段 3 遷移的第五張圖。
 //
-// 判準同前：森林是既有地形上長出來的，切出來就能走，所以直接切。
-// 這張圖的性格全在植被上 —— 扭曲的暗樹（gnarled）成片，
-// 樹種決定仍走 speciesAt() 那套群落雜訊，跟舊世界長得一樣。
+// 竹林是 buildVegetation 裡「固定位置的地景」之一（buildBamboo 依
+// REGION bamboo 的世界座標下種）。分圖之後那批地景改成依範圍取捨，
+// 所以只有這張圖會真的長出竹子 —— 別張圖不必再扛整片竹林。
 import * as THREE from 'three';
 import { REGION_BY_ID } from '../../config.js';
 import { buildTerrain, terrainHeight } from '../../world/terrain.js';
@@ -11,16 +11,16 @@ import { buildStructureSet } from '../../world/structures.js';
 import { mergeStaticByMaterial } from '../../core/optimize.js';
 import { Atmosphere } from '../../fx/atmosphere.js';
 
-const R = REGION_BY_ID.forest;
+const R = REGION_BY_ID.bamboo;
 
 export const ORIGIN = { x: R.x, z: R.z };
 
 export const meta = {
-  id: 'forest',
-  zh: '魔法之森',
-  en: 'FOREST OF MAGIC',
-  size: 560,                       // 森林半徑 250，外圍留一圈過渡
-  spawn: { x: 0, z: 40, facing: Math.PI },
+  id: 'bamboo',
+  zh: '迷途竹林',
+  en: 'BAMBOO FOREST OF THE LOST',
+  size: 600,                       // 竹林半徑 235，永遠亭在裡面
+  spawn: { x: 0, z: 80, facing: Math.PI },
   fog: R.fog,
   accent: R.accent,
   sky: 'day',
@@ -28,31 +28,18 @@ export const meta = {
 };
 
 export const entries = {
-  // 從里過來 —— 站在森林的東北緣，面向森林深處
-  from_village: { x: 150, z: -186, facing: Math.PI * 0.75 },
-  // 從竹林回來 —— 站在森林的東南緣
-  from_bamboo: { x: 210, z: 220, facing: Math.PI * -0.75 },
+  // 從魔法之森過來 —— 站在竹林的西北緣
+  from_forest: { x: -230, z: -190, facing: Math.PI * 0.75 },
   default: meta.spawn,
 };
 
 export const portals = [
   {
-    id: 'forest_to_village',
-    to: 'village',
-    entry: 'from_forest',
-    // 東北緣：出了森林就是往里的方向
-    trigger: { x: 172, z: -212, r: 12 },
-    label: '往人間之里',
-    style: 'walk',
-    condition: null,
-  },
-  {
-    id: 'forest_to_bamboo',
-    to: 'bamboo',
-    entry: 'from_forest',
-    // 東南緣：森林盡頭接上迷途竹林
-    trigger: { x: 240, z: 250, r: 12 },
-    label: '往迷途竹林',
+    id: 'bamboo_to_forest',
+    to: 'forest',
+    entry: 'from_bamboo',
+    trigger: { x: -260, z: -225, r: 12 },
+    label: '往魔法之森',
     style: 'walk',
     condition: null,
   },
@@ -65,15 +52,15 @@ export function heightAt(x, z) {
 export async function build(ctx) {
   const { quality: q, progress } = ctx;
   const group = new THREE.Group();
-  group.name = 'map:forest';
+  group.name = 'map:bamboo';
 
-  await progress?.(20, '鋪開森林地表…');
+  await progress?.(20, '鋪開竹林地表…');
   const seg = Math.max(48, Math.min(256, Math.round(meta.size / 4)));
   const terrain = buildTerrain(seg, { size: meta.size, ox: ORIGIN.x, oz: ORIGIN.z });
   group.add(terrain);
 
-  await progress?.(45, '搭起魔理沙邸…');
-  const st = buildStructureSet(['forest']);
+  await progress?.(48, '建起永遠亭…');
+  const st = buildStructureSet(['bamboo']);
   mergeStaticByMaterial(st.root, ['clock-hands', 'rope-cabin']);
   st.root.position.set(-ORIGIN.x, 0, -ORIGIN.z);
   group.add(st.root);
@@ -103,24 +90,22 @@ export async function build(ctx) {
     });
   }
 
-  await progress?.(70, '長出扭曲的暗樹…');
-  // 森林的樹比別處密（舊世界也是，靠 speciesAt 的森林分支），
-  // 這裡的密度基準沿用全域值，讓分佈與舊世界一致。
+  await progress?.(72, '長出竹海…');
   const density = q.trees / (2400 * 0.92) ** 2;
   setClearings(st.clearings);
-  const vegetation = buildVegetation(Math.round(density * meta.size ** 2 * 1.6), {
+  const vegetation = buildVegetation(Math.round(density * meta.size ** 2), {
     cx: ORIGIN.x, cz: ORIGIN.z, half: meta.size / 2,
   });
   setClearings(null);
   vegetation.position.set(-ORIGIN.x, 0, -ORIGIN.z);
   group.add(vegetation);
 
-  await progress?.(85, '鋪上林地草叢…');
-  const grass = q.grass > 0 ? new GrassField(Math.round(q.grass * 0.6)) : null;
+  await progress?.(88, '鋪上林下草地…');
+  const grass = q.grass > 0 ? new GrassField(Math.round(q.grass * 0.5)) : null;
   if (grass) group.add(grass.mesh);
 
-  // 魔法之森是全幻想鄉霧最濃的地方 —— 雲少、霧多
-  const atmosphere = new Atmosphere(Math.round(q.clouds * 0.3), Math.round(q.mist * 0.9));
+  // 迷途竹林：霧濃，雲少（抬頭是竹梢不是天）
+  const atmosphere = new Atmosphere(Math.round(q.clouds * 0.25), Math.round(q.mist * 0.9));
   group.add(atmosphere.group);
 
   return {
@@ -133,7 +118,7 @@ export async function build(ctx) {
     interactives,
     clearings,
     portals,
-    npcs: ['marisa', 'rumia'],
+    npcs: ['reisen', 'kaguya', 'eirin', 'mokou'],
     mobs: [],
     terrain, vegetation, grass, atmosphere,
 

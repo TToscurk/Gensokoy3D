@@ -28,6 +28,8 @@ export const meta = {
 export const entries = {
   // 從里過來 —— 站在湖的東南岸，面向湖心
   from_village: { x: 100, z: 180, facing: Math.PI * 0.75 },
+  // 從紅魔館回來 —— 站在湖的西岸
+  from_sdm: { x: -160, z: 50, facing: Math.PI * -0.5 },
   default: meta.spawn,
 };
 
@@ -38,6 +40,16 @@ export const portals = [
     entry: 'from_lake',
     trigger: { x: 120, z: 205, r: 12 },
     label: '往人間之里',
+    style: 'walk',
+    condition: null,
+  },
+  {
+    id: 'lake_to_sdm',
+    to: 'sdm',
+    entry: 'from_lake',
+    // 西岸：湖的對岸就是紅魔館（原作的地理關係）
+    trigger: { x: -180, z: 60, r: 12 },
+    label: '往紅魔館',
     style: 'walk',
     condition: null,
   },

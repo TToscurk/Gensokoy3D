@@ -143,7 +143,15 @@ const manager = new SceneManager({
 // ---------------------------------------------------------------------------
 // 舊世界的建築、碰撞盒、燈籠、互動點都在開機時建好，跨圖不重建。
 // 分圖切走再切回來時，得把這一份原樣裝回去。
-const persistent = { colliders: null, lanterns: null };
+const persistent = { colliders: null, lanterns: null, staticLights: null };
+
+/** 現行地圖自己掛進場景的常亮燈（吊燈、壁燭台）。切圖時要收走。 */
+let mapStaticLights = [];
+
+function clearMapStaticLights() {
+  for (const l of mapStaticLights) scene.remove(l);
+  mapStaticLights = [];
+}
 
 /** 裝回舊世界的持久層：互動點、碰撞盒、燈籠、建築群、NPC。
  *  互動點展開：室內每處拆「進入 / 離開」兩點，索道 WARP_NODES 配對互傳。
@@ -174,10 +182,12 @@ function restorePersistentLayer() {
       zh: dest.zh, msg: '索道行進中…',
     });
   }
+  clearMapStaticLights();
   if (persistent.colliders) {
     state.colliders = persistent.colliders;
     state.lanterns = persistent.lanterns;
     if (player) player.colliders = state.colliders;
+    for (const l of persistent.staticLights || []) scene.add(l);
   }
   // 舊世界的建築群整組顯示回來
   const st = scene.getObjectByName('structures');
@@ -200,6 +210,13 @@ function applyMapContent(map) {
   state.colliders = map.colliders || [];
   state.lanterns = map.lanterns || [];
   if (player) player.colliders = state.colliders;
+
+  // 常亮燈（室內吊燈、壁燭台）不跟晝夜開關，是直接掛在場景上的物件 ——
+  // 換圖時舊世界那批要收走，換上這張圖自己的，否則紅魔館的吊燈
+  // 會亮在別張圖的空中，而遷過來的館裡反而是黑的。
+  for (const l of persistent.staticLights || []) scene.remove(l);
+  clearMapStaticLights();
+  for (const l of map.staticLights || []) { scene.add(l); mapStaticLights.push(l); }
 
   clearInteractives();
   for (const it of map.interactives || []) registerInteractive(it);
@@ -235,6 +252,7 @@ async function buildOnce() {
   // 室內常亮燈（吊燈、壁燭台）：不像戶外燈籠池那樣跟著晝夜開關，
   // 加進場景一次就好，數量少（目前僅紅魔館正廳 3 盞），不會拖垮 light 預算。
   for (const l of staticLights) scene.add(l);
+  persistent.staticLights = staticLights;
 
   const hands = root.getObjectByName('clock-hands');
   state.clockHour = hands?.getObjectByName('hour') || null;

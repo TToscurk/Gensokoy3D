@@ -336,12 +336,24 @@ export function buildVegetation(count, area = null) {
     group.add(trunks, leaves);
   }
 
-  // --- 2. 竹林 ---
-  group.add(buildBamboo(Math.round(count * 0.55), rnd));
+  // --- 2/3. 固定位置的地景（竹林、太陽花田、鈴蘭、野花叢）---
+  //
+  // 這幾樣不受下種範圍影響，它們長在自己的地區裡。分圖之後這件事會變成
+  // 實打實的浪費：每張小圖都把整片竹林與花田建一次，而 instanced 網格
+  // 是 frustumCulled = false 的 —— 看不見也照畫。
+  // 所以給定 area 時只保留「和這張圖有交集」的那幾樣。
+  const inArea = (regionId, pad = 0) => {
+    if (!area) return true;
+    const r = REGION_BY_ID[regionId];
+    if (!r) return false;
+    return Math.abs(r.x - cx) < halfX + r.radius * 1.15 + pad
+        && Math.abs(r.z - cz) < halfZ + r.radius * 1.15 + pad;
+  };
 
-  // --- 3. 花田與花草 ---
-  group.add(buildSunflowers(Math.round(count * 0.32), rnd));
-  group.add(buildSuzuran(Math.round(count * 0.18), rnd));
+  if (inArea('bamboo')) group.add(buildBamboo(Math.round(count * 0.55), rnd));
+  if (inArea('sunflower')) group.add(buildSunflowers(Math.round(count * 0.32), rnd));
+  if (inArea('namelessHill')) group.add(buildSuzuran(Math.round(count * 0.18), rnd));
+  // 野花叢是散在各地的定點清單，成本低，維持整份建出來
   group.add(buildFlowerPatches(Math.round(count * 0.45), rnd));
 
   return group;
