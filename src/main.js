@@ -577,6 +577,27 @@ function bindInteraction() {
 
   // --- 傳送點 ---
   const warps = $('warps');
+
+  // --- 分圖：直接跳到任一張地圖（規格書 §4 #6 的除錯入口）---------------
+  // 舊世界的地區傳送（下面那批）是同一張圖裡的瞬移；這批是真的換圖。
+  (async () => {
+    const { MAP_IDS, loadMapModule } = await import('./scene/registry.js');
+    for (const id of MAP_IDS) {
+      const mod = await loadMapModule(id);
+      const b = document.createElement('button');
+      b.className = 'warp';
+      b.style.borderColor = 'rgba(120,200,255,.45)';   // 跟地區傳送區分開
+      b.innerHTML = `${mod.meta.zh}<span>MAP · ${mod.meta.en.split(' ')[0]}</span>`;
+      b.onclick = async () => {
+        $('opt').classList.remove('on');
+        pendingDest = { zh: mod.meta.zh, msg: '' };
+        await manager.load(id, null, { style: 'walk' });
+        syncWorldRefs();
+      };
+      warps.appendChild(b);
+    }
+  })();
+
   for (const r of REGIONS) {
     const b = document.createElement('button');
     b.className = 'warp';

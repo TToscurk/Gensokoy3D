@@ -40,6 +40,8 @@ export const meta = {
 export const entries = {
   // 從神社下來 —— 站在參道頂端，面向山下
   from_shrine: { x: 0, z: -262, facing: 0 },
+  // 從里上來 —— 站在參道底端，面向山上
+  from_village: { x: 0, z: 262, facing: Math.PI },
   default: meta.spawn,
 };
 
@@ -50,6 +52,15 @@ export const portals = [
     entry: 'from_sando',
     trigger: { x: 0, z: -292, r: 10 },
     label: '往博麗神社',
+    style: 'walk',
+    condition: null,
+  },
+  {
+    id: 'sando_to_village',
+    to: 'village',
+    entry: 'from_sando',
+    trigger: { x: 0, z: 292, r: 10 },
+    label: '往人間之里',
     style: 'walk',
     condition: null,
   },
