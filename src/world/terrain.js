@@ -288,6 +288,82 @@ function layerTextures() {
  *   （中心為原點），但高度與著色仍照世界座標取樣 —— 分圖要的就是這個：
  *   一張 420×420 的小圖有自己的原點，地貌卻和舊世界完全對得上。
  */
+/**
+ * 遠景裙襬 —— 地圖自己的地形之外那一圈背景地形。
+ *
+ * 小圖只有 400～600 公尺，霧的遠端在 900 公尺：不補這一圈，地形會在
+ * 霧遮住之前就被切出一條硬邊，外面是空的（使用者說的「場景外的白色」）。
+ *
+ * 做法是一圈中空的方環，內緣貼齊地圖邊界、外緣延伸到霧之外。解析度刻意
+ * 很低（遠景不需要細節），成本是 1 個 draw call、幾千個三角形。
+ *
+ * @param inner   內緣半邊長（＝地圖的 size/2），可傳 {x, z} 給長方形圖
+ * @param outer   外緣半邊長（建議 ≥ 霧的遠端）
+ * @param sample  (x, z) => 高度。'world' 的圖傳「局部轉世界再取樣」的函式，
+ *                'local' 的圖傳自己的 skirtHeightAt（負責平滑過渡）。
+ * @param rings   環的圈數，越多越平滑
+ */
+export function buildTerrainSkirt(inner, outer, sample, rings = 10) {
+  const inX = typeof inner === 'number' ? inner : inner.x;
+  const inZ = typeof inner === 'number' ? inner : inner.z;
+  const seg = 48;                        // 每邊的分割數（遠景，夠用就好）
+
+  const positions = [], colors = [], indices = [];
+  const col = new THREE.Color();
+  const cols = seg + 1;
+
+  // 從內緣到外緣，一圈一圈往外推。每一圈是一個方框，
+  // 用「取最大軸」的方式把方框參數化成 (u, ring)。
+  for (let r = 0; r <= rings; r++) {
+    // 非線性外推：靠近地圖的地方密、遠處疏 —— 遠景本來就看不出細節
+    const k = Math.pow(r / rings, 1.8);
+    const hx = inX + (outer - inX) * k;
+    const hz = inZ + (outer - inZ) * k;
+
+    for (let i = 0; i <= seg; i++) {
+      const u = i / seg;
+      // 沿方框走一圈：0~0.25 上邊、0.25~0.5 右邊、依此類推
+      const a = u * 4;
+      let x, z;
+      if (a < 1)      { x = -hx + 2 * hx * a;        z = -hz; }
+      else if (a < 2) { x = hx;                      z = -hz + 2 * hz * (a - 1); }
+      else if (a < 3) { x = hx - 2 * hx * (a - 2);   z = hz; }
+      else            { x = -hx;                     z = hz - 2 * hz * (a - 3); }
+
+      const h = sample(x, z);
+      positions.push(x, h, z);
+      // 遠景不做 splat，用地表綜合取樣的宏觀色就好（成本低、色調對得上）
+      groundSample(x, z, h, 0.2, col, null, null);
+      colors.push(col.r * 0.42, col.g * 0.42, col.b * 0.42);
+    }
+  }
+
+  for (let r = 0; r < rings; r++) {
+    for (let i = 0; i < seg; i++) {
+      const a = r * cols + i, b = a + 1;
+      const c = (r + 1) * cols + i, d = c + 1;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 1.0, metalness: 0,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'terrain-skirt';
+  mesh.receiveShadow = false;
+  mesh.castShadow = false;
+  mesh.matrixAutoUpdate = false;
+  mesh.updateMatrix();
+  return mesh;
+}
+
 export function buildTerrain(segments, opts = {}) {
   const size = opts.size ?? WORLD.size;
   // 狹長的圖（參道）用得到長方形；省略就是正方形

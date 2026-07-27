@@ -8,7 +8,7 @@
 // 座標系：局部座標，原點在參道正中。z 負向朝神社（上坡），z 正向朝山下。
 import * as THREE from 'three';
 import { REGION_BY_ID } from '../../config.js';
-import { buildTerrain } from '../../world/terrain.js';
+import { buildTerrain, buildTerrainSkirt, terrainHeight } from '../../world/terrain.js';
 import { buildVegetation, GrassField } from '../../world/vegetation.js';
 import { makeTorii, makeLantern, initMats } from '../../world/structures.js';
 import { mergeStaticByMaterial } from '../../core/optimize.js';
@@ -35,6 +35,9 @@ export const meta = {
   accent: R.accent,
   sky: 'day',
   bgm: null,
+  // 自己造地形的圖：世界座標對它沒有意義，所以必須自己提供
+  // 邊緣過渡帶（skirtHeightAt），否則裙襬會跟自己的地形對不上（規格書 §1）。
+  heightSpace: 'local',
 };
 
 export const entries = {
@@ -82,6 +85,24 @@ export function heightAt(x, z) {
   return h;
 }
 
+/**
+ * 裙襬用的高度：從這張圖自己的地形，平滑過渡到舊世界的地貌。
+ *
+ * `heightSpace: 'local'` 的圖必須提供這個（契約的一部分）。不做過渡的話，
+ * 自己的谷壁跟遠景的世界地形在圖邊會對不上，接縫處出現斷崖。
+ * 白玉樓、天界、彼岸之後也都會走這條路。
+ */
+export function skirtHeightAt(x, z) {
+  const own = heightAt(x, z);
+  // 用世界座標取樣舊世界（參道的世界位置就是它在山坡上的那一段）
+  const world = terrainHeight(x + R.x, z + (R.z - 475));
+  // 從圖邊界往外 240 公尺之內完成過渡
+  const d = Math.max(Math.abs(x) / (WIDTH / 2), Math.abs(z) / (LEN / 2));
+  const k = Math.min(1, Math.max(0, (d - 1) / 1.2));
+  const t = k * k * (3 - 2 * k);            // smoothstep
+  return own * (1 - t) + world * t;
+}
+
 /** 石板路上不長樹也不長草 */
 function plantableHere(x, z) {
   if (Math.abs(x) < PATH_HALF + 2.5) return false;
@@ -118,6 +139,10 @@ export async function build(ctx) {
     terrain.geometry.computeVertexNormals();
   }
   group.add(terrain);
+
+  // 遠景裙襬。這張圖是 local 高度場，所以餵的是自己的過渡函式，
+  // 而不是世界高度場 —— 直接用世界的會在圖邊斷開。
+  group.add(buildTerrainSkirt({ x: WIDTH / 2, z: LEN / 2 }, 1100, skirtHeightAt));
 
   // 這張圖自己的除草區（局部座標）：石板路上不長草。
   // clearings 現在是每張圖一份，manager 載圖時換上 —— 不會再污染舊世界。

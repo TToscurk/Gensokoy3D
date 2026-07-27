@@ -5,7 +5,7 @@
 // 所以只有這張圖會真的長出竹子 —— 別張圖不必再扛整片竹林。
 import * as THREE from 'three';
 import { REGION_BY_ID } from '../../config.js';
-import { buildTerrain, terrainHeight } from '../../world/terrain.js';
+import { buildTerrain, buildTerrainSkirt, terrainHeight } from '../../world/terrain.js';
 import { buildVegetation, GrassField, setClearings } from '../../world/vegetation.js';
 import { buildStructureSet } from '../../world/structures.js';
 import { mergeStaticByMaterial } from '../../core/optimize.js';
@@ -25,6 +25,9 @@ export const meta = {
   accent: R.accent,
   sky: 'day',
   bgm: null,
+  // 從舊世界的高度場切出來的圖：遠景裙襬直接續用同一個高度場，
+  // 天際線會是地理上真的那片地貌（規格書 §1）。
+  heightSpace: 'world',
 };
 
 export const entries = {
@@ -58,6 +61,11 @@ export async function build(ctx) {
   const seg = Math.max(48, Math.min(256, Math.round(meta.size / 4)));
   const terrain = buildTerrain(seg, { size: meta.size, ox: ORIGIN.x, oz: ORIGIN.z });
   group.add(terrain);
+
+  // 遠景裙襬：地形之外一圈低解析度背景，延伸到霧之外，
+  // 免得地圖邊緣被切出硬邊（1 個 draw call）。
+  const skirt = buildTerrainSkirt(meta.size / 2, 1100, heightAt);
+  group.add(skirt);
 
   await progress?.(48, '建起永遠亭…');
   const st = buildStructureSet(['bamboo']);
