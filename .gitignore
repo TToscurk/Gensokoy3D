@@ -1,0 +1,12 @@
+# .tmp/ 是工作目錄，約 100MB：截圖、探針輸出、Poly Haven API 快取、
+# UE5 地形烘焙輸出。這些不進版本控制 ——
+# 但那 12 支回歸腳本是專案資產（HANDOFF.md 整章都靠它們），必須留著。
+.tmp/*
+!.tmp/*.mjs
+
+node_modules/
+
+# 編輯器與系統雜物
+.DS_Store
+Thumbs.db
+*.swp
