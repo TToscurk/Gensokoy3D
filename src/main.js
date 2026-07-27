@@ -900,12 +900,39 @@ function update() {
 
 }
 
+/** 現在載著的是不是舊世界那張大圖（一張圖裡有 17 個地區）。
+ *
+ *  切圖途中 manager.id 會短暫是 null。這裡**不能**把 null 當成舊世界 ——
+ *  那一瞬間玩家的座標還是上一張圖的局部座標，拿去問 regionAt() 會判成
+ *  某個不相干的地區，然後假的 quests.onEnter 就觸發了。
+ *  （實測會在每次切圖時多噴一個 'village'。） */
+function isLegacyWorld() {
+  return manager.id === 'legacy_open';
+}
+
+/** 玩家現在在哪 —— 分圖時就是地圖本身，舊世界才靠座標判斷。
+ *  載圖中回傳 null：這時候「在哪」根本沒有答案，不要猜。 */
+function currentPlace(P) {
+  if (manager.loading || !manager.id) return state.lastRegion;
+  if (!isLegacyWorld()) return manager.meta;
+  return regionAt(P.x, P.z);
+}
+
 let hudTimer = 0;
 function updateHUD(P, dt) {
   hudTimer -= dt;
 
-  // 地區名稱
-  const reg = regionAt(P.x, P.z);
+  // 地區名稱（規格書 §4 #2）
+  //
+  // 分圖之後「所在地區」有兩種意義，不能混用：
+  //   ・legacy_open —— 一張圖裡有 17 個地區，靠世界座標判斷（舊行為）
+  //   ・分圖 —— 地區就是地圖本身，玩家的座標是局部的，
+  //             拿去問 regionAt() 會得到完全不相干的答案
+  //             （站在神社圖的 (0,180)，世界座標的同一點在人間之里）
+  //
+  // 這不只是 HUD 顯示錯。任務的 onEnter 是靠地區變化觸發的（§4 #5），
+  // 判錯地區代表任務會在錯的圖觸發、或該觸發時沒觸發。
+  const reg = currentPlace(P);
   if (reg !== state.lastRegion) {
     state.lastRegion = reg;
     const el = $('place');
@@ -914,7 +941,9 @@ function updateHUD(P, dt) {
     el.style.animation = 'none';
     void el.offsetWidth;
     el.style.animation = '';
-    if (reg) quests.onEnter(reg.id);
+    // 分圖的 onEnter 由 manager 在載圖完成時發出（時機才對得上玩家定位），
+    // 這裡只負責舊世界那種「走進某個地區」的觸發。
+    if (reg && isLegacyWorld()) quests.onEnter(reg.id);
   }
 
   // 時鐘
