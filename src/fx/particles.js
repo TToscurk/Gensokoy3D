@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { REGION_BY_ID, WORLD } from '../config.js';
-import { terrainHeight } from '../world/terrain.js';
+import { groundHeight } from '../world/terrain.js';
 import { petalTexture, glowTexture } from '../core/textures.js';
 
 // ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@ export class Petals {
     const d = Math.sqrt(Math.random()) * this.spread;
     const x = R.x + Math.cos(a) * d;
     const z = R.z + Math.sin(a) * d;
-    const ground = terrainHeight(x, z);
+    const ground = groundHeight(x, z);
     this.groundY[i] = ground - 0.5;
     pos[i * 3] = x;
     pos[i * 3 + 1] = initial
@@ -106,7 +106,7 @@ export class Spirits {
       const d = Math.sqrt(Math.random()) * R.radius * 1.3;
       const x = R.x + Math.cos(a) * d;
       const z = R.z + Math.sin(a) * d;
-      const y = terrainHeight(x, z) + 0.8 + Math.random() * 5;
+      const y = groundHeight(x, z) + 0.8 + Math.random() * 5;
       this.home[i * 3] = pos[i * 3] = x;
       this.home[i * 3 + 1] = pos[i * 3 + 1] = y;
       this.home[i * 3 + 2] = pos[i * 3 + 2] = z;

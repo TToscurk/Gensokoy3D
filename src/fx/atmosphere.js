@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { cloudTexture, mistTexture } from '../core/textures.js';
-import { terrainHeight } from '../world/terrain.js';
+import { groundHeight } from '../world/terrain.js';
 import { REGION_BY_ID } from '../config.js';
 import { mulberry32 } from '../core/noise.js';
 
@@ -194,7 +194,7 @@ export class Atmosphere {
         const d = Math.sqrt(rnd()) * reg.radius * bed.spread;
         const x = reg.x + Math.cos(a) * d, z = reg.z + Math.sin(a) * d;
         pos[i * 3]     = x;
-        pos[i * 3 + 1] = terrainHeight(x, z) + bed.yOff;
+        pos[i * 3 + 1] = groundHeight(x, z) + bed.yOff;
         pos[i * 3 + 2] = z;
         scl[i] = 26 + rnd() * 34;
         pha[i] = rnd() * Math.PI * 2;

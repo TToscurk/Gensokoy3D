@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { REGION_BY_ID } from '../config.js';
-import { terrainHeight } from '../world/terrain.js';
+import { groundHeight } from '../world/terrain.js';
 
 const MOB_R = 0.55;        // 命中判定半徑
 const RESPAWN = 12;        // 重生秒數
@@ -159,7 +159,7 @@ export class FairyMobs {
           m.vel.multiplyScalar(Math.max(0, 1 - 4.5 * dt));
           m.vel.y -= 12 * dt;
           m.pos.addScaledVector(m.vel, dt);
-          const gh = terrainHeight(m.pos.x, m.pos.z) + 0.7;
+          const gh = groundHeight(m.pos.x, m.pos.z) + 0.7;
           if (m.pos.y < gh) { m.pos.y = gh; m.vel.y = Math.abs(m.vel.y) * 0.4; }
           if (m.timer <= 0) m.state = 0;
         } else {
@@ -181,7 +181,7 @@ export class FairyMobs {
       }
 
       // 寫矩陣（消散的縮到 0 藏起來）
-      const groundY = terrainHeight(m.pos.x, m.pos.z);
+      const groundY = groundHeight(m.pos.x, m.pos.z);
       const hover = m.state === 1 ? m.pos.y : groundY + 0.9 + Math.sin(t * 2.2 + m.phase) * 0.22;
       const y = m.state === 1 ? hover : hover;
       if (m.state === 1) m.pos.y = y;

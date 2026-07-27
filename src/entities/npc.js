@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { buildCharacter, animateCharacter } from './model.js';
 import { ROSTER } from './roster.js';
 import { REGION_BY_ID, WORLD } from '../config.js';
-import { terrainHeight } from '../world/terrain.js';
+import { groundHeight } from '../world/terrain.js';
 
 const TALK_RANGE = 4.2;
 // 26 位住民散布全圖，不可能同時入鏡 —— 超過這個距離整隻隱藏、
@@ -50,7 +50,7 @@ export class NPCManager {
 
       const x = reg.x + spec.offset[0];
       const z = reg.z + spec.offset[1];
-      const ground = Math.max(terrainHeight(x, z), WORLD.waterLevel);
+      const ground = Math.max(groundHeight(x, z), WORLD.waterLevel);
       const y = ground + (spec.float ? (spec.floatY ?? 0.8) : 0);
 
       const root = buildCharacter(spec);

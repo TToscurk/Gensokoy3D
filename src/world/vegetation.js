@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as BGU from 'three/addons/utils/BufferGeometryUtils.js';
-import { terrainHeight, terrainNormal, regionAt, riverSample } from './terrain.js';
+import { terrainHeight, groundHeight, terrainNormal, regionAt, riverSample } from './terrain.js';
 import { mulberry32, fbm, smoothstep } from '../core/noise.js';
 import { WORLD, REGIONS, REGION_BY_ID, CRATER_LAKE } from '../config.js';
 import { grassAtlasTexture, leafTexture, barkTexture, flowerTexture, pbrSet } from '../core/textures.js';
@@ -668,6 +668,12 @@ export class GrassField {
     this._col = new THREE.Color();
   }
 
+  /** 切圖後呼叫：磚格快取記的是上一張圖的世界座標，整批作廢重長
+   *  （SCENE_MANAGER_SPEC §4 #10）。 */
+  reset() {
+    this.slotCoord.fill(0x7ffffff);
+  }
+
   _fill(slot, wx, wz) {
     const T = this.tileSize;
     const x0 = wx * T, z0 = wz * T;
@@ -677,14 +683,14 @@ export class GrassField {
     for (let i = 0; i < this.per; i++) {
       const x = x0 + rnd() * T;
       const z = z0 + rnd() * T;
-      const h = terrainHeight(x, z);
+      const h = groundHeight(x, z);
 
       // 不長在水裡、雪線之上，或裸露的陡坡上
       let ok = h > WORLD.waterLevel + 0.8 && h < 132;
       if (ok) {
         // 便宜的坡度估算：兩個額外取樣就夠，不必用 terrainNormal（那要四個）
-        const dx = terrainHeight(x + 2.5, z) - h;
-        const dz = terrainHeight(x, z + 2.5) - h;
+        const dx = groundHeight(x + 2.5, z) - h;
+        const dz = groundHeight(x, z + 2.5) - h;
         ok = dx * dx + dz * dz < 3.2;
       }
       if (ok && fbm(x * 0.008, z * 0.008, 2) < -0.34) ok = false;

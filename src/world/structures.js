@@ -2310,6 +2310,26 @@ function buildRopeway(colliders, lights) {
   return g;
 }
 
+// 地區 id → 建築函式。分圖改造後每張地圖只建自己那一份，
+// 所以這張表就是「哪個地區的建築歸誰」的唯一真相。
+const BUILDERS = {
+  shrine: buildShrine,
+  village: buildVillage,
+  sdm: buildMansion,
+  netherworld: buildNetherworld,
+  forest: buildForest,
+  bamboo: buildBamboo,
+  moriya: buildMoriya,
+  ropeway: buildRopeway,
+  myouren: buildMyouren,
+  kourindou: buildKourindou,
+  muenzuka: buildMuenzuka,
+  sunflower: buildSunflower,
+  tenguVillage: buildTenguVillage,
+  tenkai: buildTenkai,
+  higan: buildHigan,
+};
+
 export function buildStructures() {
   initMats();
   INTERIORS.length = 0;
@@ -2322,23 +2342,40 @@ export function buildStructures() {
   const lights = [];
   const staticLights = [];       // 室內常亮燈：不跟著晝夜開關，main.js 只需加進場景一次
 
-  root.add(buildShrine(colliders, lights, staticLights));
-  root.add(buildVillage(colliders, lights));
-  root.add(buildMansion(colliders, lights, staticLights));
-  root.add(buildNetherworld(colliders, lights));
-  root.add(buildForest(colliders, lights));
-  root.add(buildBamboo(colliders, lights));
-  root.add(buildMoriya(colliders, lights));
-  root.add(buildRopeway(colliders, lights));
-  root.add(buildMyouren(colliders, lights));
-  root.add(buildKourindou(colliders, lights));
-  root.add(buildMuenzuka(colliders, lights));
-  root.add(buildSunflower(colliders, lights));
-  root.add(buildTenguVillage(colliders, lights));
-  root.add(buildTenkai(colliders, lights, staticLights));
-  root.add(buildHigan(colliders, lights, staticLights));
+  for (const id of Object.keys(BUILDERS)) {
+    root.add(BUILDERS[id](colliders, lights, staticLights));
+  }
 
   return { root, colliders, lights, staticLights };
+}
+
+/**
+ * 只建指定地區的建築 —— 給分圖用。
+ *
+ * 各 buildXxx() 會直接往模組層的 INTERIORS / WARP_NODES 推東西（舊設計），
+ * 這裡先把它們挪開、建完再收成回傳值、最後原樣放回去。分圖呼叫這個函式
+ * 不會污染 legacy_open 那份全域清單。
+ *
+ * 回傳的 group 仍在世界座標（各 builder 最後都 `set(R.x, 0, R.z)`），
+ * 地圖要自己的局部座標系的話，把整個 group 平移回原點即可。
+ */
+export function buildStructureSet(ids) {
+  initMats();
+  const savedI = INTERIORS.splice(0), savedW = WARP_NODES.splice(0);
+  const root = new THREE.Group();
+  root.name = 'structures:' + ids.join('+');
+  const colliders = [], lights = [], staticLights = [];
+
+  for (const id of ids) {
+    const fn = BUILDERS[id];
+    if (!fn) { console.error('[structures] 沒有這個地區的建築：' + id); continue; }
+    root.add(fn(colliders, lights, staticLights));
+  }
+
+  const interiors = INTERIORS.splice(0), warps = WARP_NODES.splice(0);
+  INTERIORS.push(...savedI);
+  WARP_NODES.push(...savedW);
+  return { root, colliders, lights, staticLights, interiors, warps };
 }
 
 export { MAT, makeHall, makePaperLantern, makeFence, makeStairs };

@@ -3,6 +3,7 @@
 // 這個檔案不認識任何一張地圖的內容 —— 就像 quests/manager.js 不認識任何任務。
 // 它只負責「世界是怎麼被建構與銷毀的」，以及過場順序不可被打亂。
 import { loadMapModule, validateGraph } from './registry.js';
+import { setHeightField } from '../world/terrain.js';
 
 export class SceneManager {
   /**
@@ -98,6 +99,12 @@ export class SceneManager {
       this.entry = entryName;
       this.scene.add(map.group);
 
+      // 這一行是分圖改造的樞紐（規格書 §4 #1）：碰撞、相機、NPC、敵人、
+      // 草地、粒子全都透過 terrain.js 的 groundHeight() 讀高度，
+      // 指標一換，整個世界的「地面在哪」就換成這張圖說了算。
+      // 必須在放置玩家之前 —— teleport 會用它算落地高度。
+      setHeightField(map.heightAt);
+
       // 6. 放置玩家（清速度與慣性由 hook 負責）
       if (opts.place !== false) {
         const spot = opts.at || (entryName && mod.entries?.[entryName]) || mod.meta?.spawn || null;
@@ -132,6 +139,8 @@ export class SceneManager {
     this.map = null;
     this.mod = null;
     this.id = null;
+    // 沒有地圖時高度場還原成舊世界，避免呼叫端讀到已銷毀地圖的閉包
+    setHeightField(null);
   }
 
   /** 用目前的畫質重建同一張圖，玩家留在原地（完全不碰玩家狀態）。 */

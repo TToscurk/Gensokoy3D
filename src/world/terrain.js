@@ -63,10 +63,36 @@ export function terrainHeight(x, z) {
   return h;
 }
 
+// ---------------------------------------------------------------------------
+// 現行高度場（分圖改造 —— SCENE_MANAGER_SPEC §4 #1）
+// ---------------------------------------------------------------------------
+// 分圖之後不再有「全世界」的高度場，只有「現在載著的那張圖」的。
+//
+// 跟著玩家跑的東西（碰撞、相機、NPC、敵人、草地、粒子）一律改讀
+// `groundHeight()`；manager 在載圖時把指標換成該地圖的 `heightAt`。
+// 反過來，「建構 legacy_open 內容」的程式（buildTerrain、structures、
+// mapview 的底圖烘焙、水面）繼續直接用 `terrainHeight` —— 那些是舊世界
+// 這張圖自己的地形，不該跟著別張圖跑。
+let _heightField = terrainHeight;
+
+/** manager 專用：把現行高度場換成某張地圖的。傳 null 還原成舊世界。 */
+export function setHeightField(fn) {
+  _heightField = fn || terrainHeight;
+}
+
+export function currentHeightField() {
+  return _heightField;
+}
+
+/** 現行地圖的地面高度。 */
+export function groundHeight(x, z) {
+  return _heightField(x, z);
+}
+
 const _n = new THREE.Vector3();
 export function terrainNormal(x, z, eps = 1.2) {
-  const hL = terrainHeight(x - eps, z), hR = terrainHeight(x + eps, z);
-  const hD = terrainHeight(x, z - eps), hU = terrainHeight(x, z + eps);
+  const hL = groundHeight(x - eps, z), hR = groundHeight(x + eps, z);
+  const hD = groundHeight(x, z - eps), hU = groundHeight(x, z + eps);
   return _n.set(hL - hR, 2 * eps, hD - hU).normalize();
 }
 

@@ -107,7 +107,12 @@ const manager = new SceneManager({
       // teleport() 內部已把 vel 歸零 —— 切圖不能帶著上一張圖的墜落速度過去
       player.teleport(spot.x, spot.z, spot.y);
       if (spot.facing !== undefined) player.camYaw = spot.facing;
-      state.grass?.warmup(player.pos);
+      // 注意讀的是 manager.map 而不是 state.grass —— 這個 hook 在
+      // syncWorldRefs() 之前跑，state.grass 還指著剛被 dispose 的舊圖。
+      // 磚格快取記的是上一張圖的座標，先作廢再暖機（規格書 §4 #10）。
+      const g = manager.map?.grass;
+      g?.reset();
+      g?.warmup(player.pos);
     },
     onEnter(mapId) {
       quests?.onEnter(mapId);

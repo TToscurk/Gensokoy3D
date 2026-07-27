@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { terrainHeight, terrainNormal } from '../world/terrain.js';
+import { groundHeight, terrainNormal } from '../world/terrain.js';
 import { WORLD } from '../config.js';
 import { animateCharacter } from '../entities/model.js';
 
@@ -113,7 +113,7 @@ export class PlayerController {
   // y 可選：室內傳送這類落點不在地形上的情況直接給定高度；
   // 沒給就照舊貼地形（舊呼叫端零影響）。
   teleport(x, z, y) {
-    this.pos.set(x, y !== undefined ? y : terrainHeight(x, z) + 0.2, z);
+    this.pos.set(x, y !== undefined ? y : groundHeight(x, z) + 0.2, z);
     this.vel.set(0, 0, 0);
   }
 
@@ -233,7 +233,7 @@ export class PlayerController {
     this._resolveCollisions();
 
     // --- 地面 ---
-    const gh = terrainHeight(this.pos.x, this.pos.z);
+    const gh = groundHeight(this.pos.x, this.pos.z);
     let floor = Math.max(gh, WORLD.waterLevel - 0.6);
     // 可行走平台（walk 碰撞盒）：站在頂面附近時，地面吸附到平台頂。
     // 0.55 的步高容許讓台階可以一級一級走上去；低於頂面太多則視為在平台下方。
@@ -312,15 +312,15 @@ export class PlayerController {
     const probe = this._camPos.copy(target).addScaledVector(dir, dist);
 
     // 別讓相機鑽進地形
-    const gh = terrainHeight(probe.x, probe.z) + 0.9;
+    const gh = groundHeight(probe.x, probe.z) + 0.9;
     if (probe.y < gh) {
       // 沿著射線往回縮，直到高於地面
       for (let i = 0; i < 8 && dist > 1.2; i++) {
         dist *= 0.82;
         probe.copy(target).addScaledVector(dir, dist);
-        if (probe.y >= terrainHeight(probe.x, probe.z) + 0.9) break;
+        if (probe.y >= groundHeight(probe.x, probe.z) + 0.9) break;
       }
-      probe.y = Math.max(probe.y, terrainHeight(probe.x, probe.z) + 0.9);
+      probe.y = Math.max(probe.y, groundHeight(probe.x, probe.z) + 0.9);
     }
 
     this.camera.position.lerp(probe, Math.min(1, 18 * dt));
