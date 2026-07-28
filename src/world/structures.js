@@ -347,6 +347,43 @@ function makeFence(length, mat = MAT.woodDark) {
   return m;
 }
 
+/** 玉垣（移植自 demo 的紅柵）：神社境內的朱紅圍籬。
+ *  柱距比木柵欄密（1.3m）、柱身較粗，雙橫檔——村裡的木柵欄是另一種東西。 */
+function makeTamagaki(length) {
+  const parts = [];
+  const n = Math.max(2, Math.round(length / 1.3));
+  for (let i = 0; i <= n; i++) {
+    const p = new THREE.BoxGeometry(0.18, 1.5, 0.18);
+    p.translate(-length / 2 + (i * length) / n, 0.75, 0);
+    parts.push(p);
+  }
+  for (const y of [0.6, 1.35]) {
+    const r = new THREE.BoxGeometry(length, 0.14, 0.14);
+    r.translate(0, y, 0);
+    parts.push(r);
+  }
+  const m = new THREE.Mesh(BGU.mergeGeometries(parts), MAT.vermilion);
+  m.castShadow = m.receiveShadow = true;
+  return m;
+}
+
+/** 繪馬掛（移植自 demo）：兩柱一桁，掛九塊繪馬。
+ *  傾角用固定表不用亂數 —— 場景重建時樣子要一致。 */
+function makeEma() {
+  const g = new THREE.Group();
+  for (const sx of [-1, 1]) g.add(cyl(0.12, 0.14, 2.2, MAT.woodDark, sx * 1.6, 1.1, 0, 8));
+  g.add(box(3.6, 0.16, 0.3, MAT.woodDark, 0, 2.1, 0));
+  const TILT = [0.05, -0.06, 0.03, -0.02, 0.07, -0.04, 0.02, -0.05, 0.04];
+  for (let i = 0; i < 9; i++) {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.28), MAT.paper);
+    p.position.set(-1.4 + (i % 5) * 0.7, 1.75 - ((i / 5) | 0) * 0.42, 0.02 + ((i / 5) | 0) * 0.06);
+    p.rotation.z = TILT[i];
+    p.castShadow = true;
+    g.add(p);
+  }
+  return g;
+}
+
 /** 拜殿：三面牆＋開放正面（簷廊式），真正能走進去的神社室內。
  *  真實神社的拜殿不是密室——朝參道那一面通常是開放或格柵狀的，
  *  賽錢箱、鈴、狛犬都在那個開口前。opts.open 決定哪一側是開口：
@@ -402,27 +439,40 @@ function makeHaidenOpen(w, d, wallH, opts = {}) {
   return g;
 }
 
-/** 狛犬（一對，成對呼叫兩次並鏡射 x） */
+/** 狛犬（移植自 demo）：高台座＋方身軀＋十二面體頭＋捲尾，
+ *  比舊版球頭大一圈，遠看剪影才認得出是狛犬。
+ *  面向本地 +Z；成對呼叫兩次分置左右，mouthOpen 區分「阿吽」（開口/閉口）。 */
 function makeKomainu(scale = 1, mouthOpen = true) {
   const g = new THREE.Group();
   const s = scale;
-  g.add(box(0.62 * s, 0.5 * s, 1.05 * s, MAT.stone, 0, 0.48 * s, 0));
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.34 * s, 12, 9), MAT.stone);
-  head.position.set(0, 0.92 * s, 0.4 * s);
-  head.scale.set(1, 0.95, mouthOpen ? 1.12 : 1.0);
+  g.add(box(1.1 * s, 1.5 * s, 1.5 * s, MAT.stone, 0, 0.75 * s, 0));        // 台座
+  const body = box(0.72 * s, 0.85 * s, 1.25 * s, MAT.stone, 0, 1.95 * s, 0);
+  body.rotation.x = -0.06;
+  g.add(body);
+  for (const sx of [-1, 1]) {
+    g.add(box(0.2 * s, 0.62 * s, 0.2 * s, MAT.stone, sx * 0.24 * s, 1.25 * s, 0.42 * s));  // 前腳
+    g.add(box(0.2 * s, 0.55 * s, 0.2 * s, MAT.stone, sx * 0.24 * s, 1.3 * s, -0.42 * s));  // 後腳
+  }
+  const head = new THREE.Mesh(new THREE.DodecahedronGeometry(0.48 * s, 0), MAT.stone);
+  head.position.set(0, 2.55 * s, 0.62 * s);
   head.castShadow = true;
   g.add(head);
-  for (const sx of [-1, 1]) {
-    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.09 * s, 0.2 * s, 6), MAT.stone);
-    ear.position.set(sx * 0.24 * s, 1.2 * s, 0.38 * s);
+  g.add(box(0.3 * s, 0.26 * s, 0.36 * s, MAT.stone, 0, 2.45 * s, 0.98 * s));  // 吻部
+  if (mouthOpen) {   // 「阿」形：嘴下開一道暗縫
+    g.add(box(0.24 * s, 0.12 * s, 0.3 * s, MAT.stoneDark, 0, 2.3 * s, 0.96 * s));
+  }
+  for (const sz of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.16 * s, 0.34 * s, 5), MAT.stone);
+    ear.position.set(sz * 0.26 * s, 2.92 * s, 0.5 * s);
+    ear.rotation.x = 0.3;
     ear.castShadow = true;
     g.add(ear);
   }
-  g.add(cyl(0.09 * s, 0.11 * s, 0.55 * s, MAT.stone, 0, 0.3 * s, 0.58 * s, 6));
-  const base = new THREE.Mesh(new THREE.BoxGeometry(0.9 * s, 0.32 * s, 1.3 * s), MAT.stoneDark);
-  base.position.y = 0.16 * s;
-  base.castShadow = base.receiveShadow = true;
-  g.add(base);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.3 * s, 0.95 * s, 6), MAT.stone);
+  tail.position.set(0, 2.5 * s, -0.7 * s);
+  tail.rotation.x = -0.7;
+  tail.castShadow = true;
+  g.add(tail);
   return g;
 }
 
@@ -430,33 +480,35 @@ function makeKomainu(scale = 1, mouthOpen = true) {
 function makeChozuya(scale = 1) {
   const g = new THREE.Group();
   const s = scale;
+  // 四柱方亭（移植自 demo）：直坡雙坡屋根、長方石鉢、四柄竹杓
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    g.add(cyl(0.09 * s, 0.11 * s, 2.2 * s, MAT.woodDark, sx * 1.1 * s, 1.1 * s, sz * 0.8 * s, 8));
+    g.add(cyl(0.17 * s, 0.19 * s, 3.0 * s, MAT.woodDark, sx * 1.7 * s, 1.5 * s, sz * 1.4 * s, 10));
   }
-  const roof = new THREE.Mesh(curvedRoof(2.9 * s, 2.3 * s, 1.0 * s, 0.25, 0.35), MAT.roof);
-  roof.position.y = 2.35 * s;
-  roof.castShadow = roof.receiveShadow = true;
-  g.add(roof);
+  g.add(box(4.6 * s, 0.22 * s, 3.6 * s, MAT.woodDark, 0, 3.05 * s, 0));   // 軒受け
+  for (const dir of [1, -1]) {
+    const m = box(5.2 * s, 0.4 * s, 2.6 * s, MAT.roof, 0, 3.75 * s, dir * 1.05 * s);
+    m.rotation.x = dir * 0.42;
+    g.add(m);
+  }
+  g.add(box(5.3 * s, 0.5 * s, 0.7 * s, MAT.roof, 0, 4.3 * s, 0));         // 棟
 
-  g.add(cyl(0.55 * s, 0.62 * s, 0.5 * s, MAT.stoneDark, 0, 0.5 * s, 0, 12));
-  const water = new THREE.Mesh(new THREE.CircleGeometry(0.48 * s, 16), new THREE.MeshStandardMaterial({
-    color: 0x2f5a6a, roughness: 0.1, metalness: 0.25, transparent: true, opacity: 0.88,
-  }));
+  g.add(box(2.6 * s, 0.9 * s, 1.7 * s, MAT.stone, 0, 0.45 * s, 0));       // 石鉢
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(2.2 * s, 1.3 * s),
+    new THREE.MeshStandardMaterial({
+      color: 0x5f8f93, roughness: 0.08, metalness: 0.55, transparent: true, opacity: 0.9,
+    }));
   water.rotation.x = -Math.PI / 2;
-  water.position.y = 0.74 * s;
+  water.position.y = 0.92 * s;
   g.add(water);
 
-  for (const a of [0.6, -2.2]) {
-    const ladle = new THREE.Group();
-    ladle.add(cyl(0.02 * s, 0.02 * s, 0.5 * s, MAT.wood, 0, 0, 0, 6));
-    const bowl = new THREE.Mesh(
-      new THREE.SphereGeometry(0.09 * s, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.6), MAT.wood);
-    bowl.position.y = -0.27 * s;
-    ladle.add(bowl);
-    ladle.position.set(Math.cos(a) * 0.5 * s, 0.78 * s, Math.sin(a) * 0.5 * s);
-    ladle.rotation.z = Math.PI / 2.2;
-    ladle.rotation.y = a;
-    g.add(ladle);
+  for (let i = 0; i < 4; i++) {   // 竹杓斜架在鉢緣
+    const l = new THREE.Group();
+    l.position.set((-0.9 + i * 0.6) * s, 1.0 * s, 0);
+    const handle = cyl(0.03 * s, 0.03 * s, 0.8 * s, MAT.wood, 0, 0, 0.35 * s, 6);
+    handle.rotation.x = Math.PI / 2;
+    l.add(handle);
+    l.add(cyl(0.11 * s, 0.11 * s, 0.1 * s, MAT.wood, 0, 0, -0.1 * s, 8));
+    g.add(l);
   }
   return g;
 }
@@ -915,15 +967,23 @@ function buildShrine(colliders, lights, staticLights) {
   komB.position.set(3.6, komY, 8.9);
   komB.rotation.y = -0.3;
   g.add(komB);
-  colliders.push({ x: R.x - 3.6, z: R.z + 8.9, r: 0.7, y: komY, h: 1.4 });
-  colliders.push({ x: R.x + 3.6, z: R.z + 8.9, r: 0.7, y: komY, h: 1.4 });
+  colliders.push({ x: R.x - 3.6, z: R.z + 8.9, r: 0.9, y: komY, h: 3.0 });
+  colliders.push({ x: R.x + 3.6, z: R.z + 8.9, r: 0.9, y: komY, h: 3.0 });
 
   // 手水舍：進入社殿前先淨手，位置在中鳥居與社殿之間
   const chozY = terrainHeight(R.x + 6.4, R.z - 4);
-  const choz = makeChozuya(1.1);
+  const choz = makeChozuya(1.0);
   choz.position.set(6.4, chozY, -4);
   g.add(choz);
-  colliders.push({ x: R.x + 6.4, z: R.z - 4, r: 1.4, y: chozY, h: 2.4 });
+  colliders.push({ x: R.x + 6.4, z: R.z - 4, hw: 2.7, hd: 2.0, y: chozY, h: 4.4 });
+
+  // 繪馬掛：參道另一側，與手水舍相對
+  const emaY = terrainHeight(R.x - 6.5, R.z - 2);
+  const ema = makeEma();
+  ema.position.set(-6.5, emaY, -2);
+  ema.rotation.y = 0.5;
+  g.add(ema);
+  colliders.push({ x: R.x - 6.5, z: R.z - 2, hw: 1.9, hd: 0.5, y: emaY, h: 2.2 });
 
   // 石燈籠列：貼著境內參道，每盞各自取樣腳下地形高度
   for (let i = 0; i < 6; i++) {
@@ -970,9 +1030,9 @@ function buildShrine(colliders, lights, staticLights) {
   g.add(side);
   colliders.push({ x: R.x - 13, z: R.z + 6, hw: 3.8, hd: 3.6, y: base, h: 6 });
 
-  // 圍籬
+  // 玉垣：朱紅圍籬（村裡的木柵欄是另一種）
   for (const sx of [-1, 1]) {
-    const f = makeFence(40);
+    const f = makeTamagaki(40);
     f.rotation.y = Math.PI / 2;
     f.position.set(sx * 22, base, 0);
     g.add(f);
@@ -1799,10 +1859,10 @@ function buildMoriya(colliders, lights) {
 
   // 手水舍：參道旁，參拜前淨手
   const chozY = terrainHeight(R.x + 13, R.z + 4);
-  const choz = makeChozuya(1.1);
+  const choz = makeChozuya(1.0);
   choz.position.set(13, chozY, 4);
   g.add(choz);
-  colliders.push({ x: R.x + 13, z: R.z + 4, r: 1.4, y: chozY, h: 2.4 });
+  colliders.push({ x: R.x + 13, z: R.z + 4, hw: 2.7, hd: 2.0, y: chozY, h: 4.4 });
 
   // 御柱：殿後四根（諏訪大社四隅立柱的作法）
   for (const px of [HX - 10, HX + 10]) for (const pz of [-19, -24]) {
