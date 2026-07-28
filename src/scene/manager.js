@@ -48,9 +48,12 @@ export class SceneManager {
 
   /** 開機時驗證出入口連線圖，錯誤直接印出來（缺一就是資料寫壞了）。 */
   async validate() {
-    const errs = await validateGraph();
-    for (const e of errs) console.error('[registry]', e);
-    return errs;
+    const { errors, warnings } = await validateGraph();
+    for (const e of errors) console.error('[registry]', e);
+    // 警告用 warn 不用 error —— e2e 的錯誤捕捉只看 error，
+    // 開機才不會因為「餘裕偏薄」這種非致命的事被判成失敗。
+    for (const w of warnings) console.warn('[registry] 餘裕不足：', w);
+    return errors;
   }
 
   /**

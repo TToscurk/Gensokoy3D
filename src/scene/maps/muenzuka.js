@@ -30,7 +30,10 @@ export const entries = {
   // 從魔法之森過來 —— 站在墓所的東北緣
   from_forest: { x: 78, z: -66, facing: Math.PI * 0.75 },
   // 從彼岸回來 —— 落在深淵底的空地，四周是無緣者的石塔
-  from_higan: { x: -70, z: 46, facing: Math.PI * 0.35 },
+  // 從彼岸回來。往東挪到坡道上（9.5m）—— 原本在 (-70,46) 地面只有 -2.4m，
+  // 那是通往彼岸的窪地底部（水面 0），從彼岸回來會直接落進水裡。
+  // 觸發區刻意留在窪底（結界最薄之處），但**落點不該跟著留在那裡**。
+  from_higan: { x: -50, z: 46, facing: Math.PI * 0.35 },
   default: meta.spawn,
 };
 

@@ -28,12 +28,17 @@ await evaljs(`(() => { window.__e = []; window.addEventListener('error', e => wi
 // --- ① 連線圖完整性 -------------------------------------------------------
 const graph = await evaljs(`(async () => {
   const reg = await import('./src/scene/registry.js');
-  const errs = await reg.validateGraph();
+  const { errors, warnings } = await reg.validateGraph();
   const table = await reg.linkTable();
-  return JSON.stringify({ errs, table, ids: reg.MAP_IDS });
+  return JSON.stringify({ errs: errors, warns: warnings, table, ids: reg.MAP_IDS });
 })()`, true).then(JSON.parse);
-ck('連線圖零錯誤（雙向、目標存在、entry 存在）', graph.errs.length === 0,
-   graph.errs.length ? graph.errs.join(' / ') : JSON.stringify(graph.table));
+ck('連線圖零錯誤（雙向、目標存在、entry 存在、落點不在觸發區內）',
+   graph.errs.length === 0,
+   graph.errs.length ? graph.errs.join(' / ') : `${Object.keys(graph.table).length} 張圖`);
+if (graph.warns.length) {
+  console.log(`      （${graph.warns.length} 則餘裕不足的警告，不算失敗）`);
+  for (const w of graph.warns) console.log('        · ' + w);
+}
 ck('shrine 與 sando 都註冊了', graph.ids.includes('shrine') && graph.ids.includes('sando'),
    graph.ids.join(','));
 
