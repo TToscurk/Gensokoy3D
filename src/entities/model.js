@@ -745,6 +745,36 @@ export function buildCharacter(spec) {
     head.add(hl);
   }
 
+  // 眉毛：比髮色深一階的細短線，眉尾略下垂 —— 沒有眉毛的臉會很「素」
+  const browCol = new THREE.Color(pal.hair ?? 0x444444).multiplyScalar(0.45);
+  const browMat = toon(browCol.getHex());
+  for (const sx of [-1, 1]) {
+    const b = part(new THREE.BoxGeometry(0.062, 0.010, 0.008), browMat,
+      sx * 0.086, 0.098, HEAD_R * 0.90);
+    b.rotation.z = sx * -0.10;
+    b.userData.noOutline = true;
+    head.add(b);
+  }
+
+  // 微笑嘴：半圓環弧線。遠看只是一道小弧，近看（對話）才讀得出表情
+  const mouth = new THREE.Mesh(
+    new THREE.TorusGeometry(0.030, 0.0062, 6, 14, Math.PI), toon(0x8f4a44));
+  mouth.position.set(0, -0.062, HEAD_R * 0.95);
+  mouth.rotation.z = Math.PI;              // 弧口朝上 = 微笑
+  mouth.scale.set(1, 0.9, 0.6);
+  mouth.userData.noOutline = true;
+  head.add(mouth);
+
+  // 腮紅：淡淡兩點，Q 版比例下的氣色
+  const blushMat = toon(0xefa9a0);
+  for (const sx of [-1, 1]) {
+    const bl = part(new THREE.SphereGeometry(0.021, 8, 6), blushMat,
+      sx * 0.148, -0.028, HEAD_R * 0.82);
+    bl.scale.set(1, 0.62, 0.30);
+    bl.userData.noOutline = true;
+    head.add(bl);
+  }
+
   // --- 頭髮 / 頭飾 ---
   const hairBack = buildHair(spec.hair, hairMat, body, head, pal);
   buildHat(spec.hat, pal, head, body);

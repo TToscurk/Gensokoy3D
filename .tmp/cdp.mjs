@@ -7,10 +7,10 @@
 //   page.close();
 const CDP_PORT = 9223;
 
-export async function cdp() {
+export async function cdp(urlFilter = 'localhost:8080') {
   const targets = await (await fetch(`http://localhost:${CDP_PORT}/json`)).json();
-  const page = targets.find(t => t.type === 'page' && t.url.includes('localhost:8080'));
-  if (!page) throw new Error('找不到 8080 頁面 target（headless Chrome 沒開？）');
+  const page = targets.find(t => t.type === 'page' && t.url.includes(urlFilter));
+  if (!page) throw new Error(`找不到 ${urlFilter} 頁面 target（headless Chrome 沒開？）`);
 
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   let mid = 0;
