@@ -331,6 +331,10 @@ export class MapView {
     ctx.arc(R, R, R - 1, 0, Math.PI * 2);
     ctx.clip();
 
+    // 地圖邊緣外：鋪深地色，別透出後面亮的天空/霧（看起來像白邊）
+    ctx.fillStyle = '#232b1f';
+    ctx.fillRect(0, 0, S, S);
+
     // 底圖：以玩家為中心取 MINI_RANGE*2 見方（底圖是現行地圖的局部座標）
     const base = this.base;
     if (base) {
