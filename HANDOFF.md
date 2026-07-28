@@ -438,3 +438,9 @@ controller 有預設值，沒填的角色零影響。緣一：一段跳 2.87m、
   tag `stage1-green` / `stage2-green` / `stage3-green`）。階段 1 骨架 + legacy_open、
   階段 2 shrine/sando 互通、階段 3 遷完全部 18 張（07-28 完成）。預設畫質改成 low
   （目標機器換成筆電內顯）。詳見 `SCENE_MANAGER_SPEC.md` 的各階段完成紀錄。
+- **第七輪**（2026-07-28）：**D:\神社\shrine demo 移植**。鳥居（`0f5ea3f`，
+  另一條線做的）之後補完：拜殿換切妻造大屋根＋鰹木千木＋內部天花板露明樑
+  燭台御札（`2f8c34e`）；狛犬・手水舍・玉垣・繪馬掛換 demo 版（`cea26d7`，
+  玉垣是朱紅圍籬、makeFence 留給村裡）；長石段照方案 A 只換皮——整段
+  實心石欄干＋親柱，動線不變（`dfe6d64`）。
+  坑：傳送點會吃 teleport——驗證截圖要避開 portal 半徑（神社 z=-150 r9）。
