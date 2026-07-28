@@ -207,6 +207,8 @@ export const REGIONS = [
     id: 'tenguVillage', zh: '天狗聚落', en: 'TENGU SETTLEMENT', dir: '西北',
     x: -840, z: -590, elev: 142, radius: 78, rough: 3.2,
     fog: 0xa8bcce, accent: 0x8a9ab0,
+    // 預設落點（圓心南 0.55R）會掉進瀑布溪谷；改落文旁邊的台地
+    warp: [-832, -566],
   },
 
   // ---- 結界之外 ----

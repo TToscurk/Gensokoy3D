@@ -19,7 +19,9 @@ export const meta = {
   zh: '天狗聚落',
   en: 'TENGU SETTLEMENT',
   size: 320,
-  spawn: { x: 0, z: 40, facing: 0 },
+  // 出生點在文（10,12）旁邊的聚落台地上（高 141，平坦）。
+  // 別放 (0,40)——那裡是瀑布溪谷底（高 99），一進圖就站在溪裡。
+  spawn: { x: 8, z: 24, facing: -0.16 },   // 面朝西北，開眼就看到文
   fog: R.fog,
   accent: R.accent,
   sky: 'day',
