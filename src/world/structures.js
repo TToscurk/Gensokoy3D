@@ -461,13 +461,19 @@ function makeChozuya(scale = 1) {
   return g;
 }
 
-/** 鈴緒：拜殿前懸掛的鈴鐺與麻繩 */
+/** 鈴緒：拜殿前懸掛的鈴鐺與麻繩。
+ *  繩身是紅白相間的短節（移植自 demo 的鈴緒）——純白一根太單調，
+ *  紅白節紋才是祭典鈴緒的樣子。 */
 function makeSuzuBell(scale = 1) {
   const g = new THREE.Group();
   const s = scale;
-  g.add(cyl(0.05 * s, 0.06 * s, 1.5 * s, MAT.plaster, 0, -0.75 * s, 0, 8));
-  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.22 * s, 12, 8), MAT.gold);
-  bell.position.y = -1.62 * s;
+  for (let i = 0; i < 6; i++) {
+    g.add(cyl(0.075 * s, 0.075 * s, 0.26 * s, i % 2 ? MAT.clothRed : MAT.paper,
+      0, -0.13 * s - i * 0.26 * s, 0, 8));
+  }
+  g.add(cyl(0.1 * s, 0.07 * s, 0.28 * s, MAT.clothRed, 0, -0.13 * s - 6 * 0.26 * s, 0, 8));  // 穗
+  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.22 * s, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.78), MAT.gold);
+  bell.position.y = 0.02 * s;
   bell.castShadow = true;
   g.add(bell);
   return g;
@@ -592,11 +598,11 @@ function makeTerrainStairs(R, width, z0, z1, xOff = 0, run = 0.62) {
   return m;
 }
 
-/** 博麗神社社殿 —— 依 THBWiki 考據重建：
- *  ・入母屋造（歇山頂）、正面千鳥破風＋軒唐破風
- *  ・高床式：木架把地板抬離地面，周圍一圈縁側，正面木階上下
- *  ・外壁白漆喰（木造白壁，不是磚造）、深色木柱、瓦葺屋根（近代作品版本）
- *  ・內有榻榻米、神龕御鏡、幣束一對
+/** 博麗神社社殿 —— 屋頂移植自 D:\神社\shrine demo 的切妻造：
+ *  ・切妻造大屋根（兩坡、深簷），棟上鰹木（附金飾端）＋兩端千木
+ *  ・高床式：木架把地板抬離地面，正面縁側與木階上下
+ *  ・外壁白漆喰（木造白壁，不是磚造）、深色木柱
+ *  ・內有榻榻米、神龕御鏡、幣束一對、燭台一對，頂上有天花板與露明樑
  *  開口朝本地 -Z（參道側）。本地原點在地面中心。 */
 function makeHakureiHaiden(w = 12, d = 9, wallH = 3.6) {
   const g = new THREE.Group();
@@ -647,7 +653,7 @@ function makeHakureiHaiden(w = 12, d = 9, wallH = 3.6) {
     g.add(cyl(pr * 0.9, pr, wallH + 0.35, MAT.woodDark, sx * (doorW / 2 + 0.45), floorY + (wallH + 0.35) / 2, -(d / 2 + 1.45), 8));
   }
 
-  // 內部：榻榻米 + 神龕（御神體鏡）+ 幣束一對
+  // 內部：榻榻米 + 神龕（御神體鏡）+ 幣束一對 + 燭台一對
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.5, d - 0.5), MAT.tatami);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(0, floorY + 0.01, 0);
@@ -670,32 +676,85 @@ function makeHakureiHaiden(w = 12, d = 9, wallH = 3.6) {
     gohei.position.set(sx * 1.7, floorY, d / 2 - 0.85);
     g.add(gohei);
   }
-
-  // 屋頂：入母屋大屋根 + 正脊 + 鴟尾
-  const roofH = 4.4;
-  const roof = new THREE.Mesh(curvedRoof(w + 3.0, d + 3.0, roofH, 0.3, 0.62), MAT.roof);
-  roof.position.y = floorY + wallH;
-  roof.castShadow = roof.receiveShadow = true;
-  g.add(roof);
-  g.add(box((w + 3.0) * 0.3, 0.34, 0.56, MAT.roofBlack, 0, floorY + wallH + roofH, 0));
-  for (const sx of [-1, 1]) {
-    g.add(box(0.32, 0.72, 0.5, MAT.gold, sx * (w + 3.0) * 0.15, floorY + wallH + roofH + 0.42, 0));
+  for (const sx of [-1, 1]) {          // 燭台（demo 移植）：金座＋火珠，不設點光源（省給主燈）
+    g.add(cyl(0.09, 0.13, 0.72, MAT.gold, sx * 1.35, floorY + 1.36, d / 2 - 0.85, 8));
+    const flame = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), MAT.candleFlame);
+    flame.position.set(sx * 1.35, floorY + 1.78, d / 2 - 0.85);
+    g.add(flame);
   }
 
-  // 千鳥破風：正面屋根上的三角破風（白壁面 + 木框）
-  const hafu = new THREE.Mesh(triPrismGeo(5.4, 1.8, 0.4), MAT.plaster);
-  hafu.position.set(0, floorY + wallH + roofH * 0.42, -(d / 2) - 0.15);
-  hafu.castShadow = true;
-  g.add(hafu);
-  const hafuTrim = new THREE.Mesh(triPrismGeo(5.9, 2.0, 0.22), MAT.woodDark);
-  hafuTrim.position.set(0, floorY + wallH + roofH * 0.42 - 0.08, -(d / 2) - 0.28);
-  g.add(hafuTrim);
+  // 天花板＋露明樑（demo 移植）：抬頭看到的是木料，不是屋頂瓦的背面
+  g.add(box(w - 0.6, 0.16, d - 0.8, MAT.darkWood, 0, floorY + wallH + 0.26, 0));
+  for (let i = -3; i <= 3; i++) {
+    g.add(box(0.2, 0.26, d - 0.8, MAT.wood, i * 1.5, floorY + wallH + 0.1, 0));
+  }
 
-  // 軒唐破風：入口上方的小弧形破風屋頂
-  const kara = new THREE.Mesh(curvedRoof(5.8, 2.8, 1.5, 0.36, 0.45), MAT.roof);
-  kara.position.set(0, floorY + wallH * 0.94, -(d / 2 + 1.4));
-  kara.castShadow = kara.receiveShadow = true;
-  g.add(kara);
+  // 縁側欄杆（demo 移植）：朱紅細欄沿兩側走到後緣
+  for (const sx of [-1, 1]) {
+    g.add(box(0.12, 0.12, d + 0.9, MAT.vermilion, sx * (w / 2 + 0.48), floorY + 0.82, -0.15));
+    for (let i = 0; i < 8; i++) {
+      g.add(box(0.09, 0.82, 0.09, MAT.vermilion, sx * (w / 2 + 0.48), floorY + 0.41, -(d / 2 + 0.55) + i * 1.42));
+    }
+  }
+
+  // 御札（demo 移植）：釘在正面兩側障子上，微微歪斜才有生活感
+  for (const sx of [-1, 1]) for (let i = 0; i < 2; i++) {
+    const o = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.85), MAT.paper);
+    o.position.set(sx * (doorW / 2 + 1.3 + i * 1.0), floorY + 2.6 - i * 0.22, -d / 2 + 0.16);
+    o.rotation.y = Math.PI;
+    o.rotation.z = sx * (0.04 + i * 0.03);
+    g.add(o);
+  }
+
+  // 屋頂：切妻造大屋根（demo 移植）——脊沿 X、兩坡深簷。
+  // 坡度比沿用 demo 的 0.735（高/跨），屋頂佔的視覺體積夠大，
+  // 神社才會是「遠遠就看到一頂大屋根」的剪影。
+  const slopeRatio = 0.735;
+  const halfD = d / 2 + 2.8;                       // 簷口出挑 2.8m（深簷）
+  const eaveY = floorY + wallH + 0.2;
+  const ridgeY = eaveY + halfD * slopeRatio;
+  const roofW = w + 4.4;
+  for (const dir of [1, -1]) {
+    const eaveZ = dir * halfD;
+    const dy = ridgeY - eaveY, dz = halfD;
+    const len = Math.hypot(dz, dy);
+    const m = box(roofW, 0.5, len, MAT.roof, 0, (ridgeY + eaveY) / 2, eaveZ / 2);
+    m.rotation.x = dir * Math.atan2(dy, dz);
+    g.add(m);
+    // 簷口緣板
+    g.add(box(roofW + 0.3, 0.38, 0.45, MAT.darkWood, 0, eaveY - 0.1, eaveZ));
+  }
+
+  // 山牆（兩端切妻封口）
+  for (const sx of [-1, 1]) {
+    const shape = new THREE.Shape();
+    shape.moveTo(-halfD, eaveY - 0.36);
+    shape.lineTo(halfD, eaveY - 0.36);
+    shape.lineTo(0, ridgeY);
+    const tri = new THREE.Mesh(new THREE.ShapeGeometry(shape), MAT.darkWood);
+    tri.position.set(sx * (roofW / 2 - 0.05), 0, 0);
+    tri.rotation.y = sx * Math.PI / 2;
+    tri.castShadow = true;
+    g.add(tri);
+  }
+
+  // 大棟＋鰹木（附金飾端）＋兩端千木（交叉長木，切妻造的標記）
+  g.add(box(roofW + 0.5, 0.8, 1.5, MAT.roof, 0, ridgeY + 0.05, 0));
+  for (let i = -2; i <= 2; i++) {
+    const k = cyl(0.26, 0.26, 2.1, MAT.darkWood, i * (roofW / 5), ridgeY + 0.62, 0, 10);
+    k.rotation.x = Math.PI / 2;
+    g.add(k);
+    for (const sz of [-1, 1]) {
+      const cap = cyl(0.29, 0.29, 0.18, MAT.gold, i * (roofW / 5), ridgeY + 0.62, sz * 1.05, 10);
+      cap.rotation.x = Math.PI / 2;
+      g.add(cap);
+    }
+  }
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const c = box(0.26, 3.0, 0.26, MAT.darkWood, sx * (roofW / 2 - 0.3), ridgeY + 0.8, sz * 0.75);
+    c.rotation.x = -sz * 0.42;
+    g.add(c);
+  }
 
   // 簷下紙燈籠一對
   for (const sx of [-1, 1]) {
