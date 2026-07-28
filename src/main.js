@@ -116,6 +116,13 @@ const manager = new SceneManager({
       g?.warmup(player.pos);
     },
     applyEnv(meta, map) {
+      // 空氣牆：把玩家夾在這張圖的範圍內（見 controller._clampToBounds）。
+      // legacy_open 的 2400 對應舊世界本來就有的環形山，設了也一致。
+      if (player) {
+        const hx = (meta?.sizeX ?? meta?.size ?? 0) / 2;
+        const hz = (meta?.sizeZ ?? meta?.size ?? 0) / 2;
+        player.bounds = hx > 0 ? { hx, hz } : null;
+      }
       // 自帶內容的圖（shrine / sando）用自己的；沒有的（legacy_open）
       // 把開機時建好的持久層裝回去。
       // 有些圖沒有建築也沒有互動點（霧之湖），但它仍然是一張自給自足的圖 ——

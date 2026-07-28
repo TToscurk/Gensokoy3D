@@ -20,6 +20,10 @@ export class PlayerController {
     this.flying = false;
     this.speedMul = 1;
 
+    /** 地圖邊界（空氣牆）：{ hx, hz } 局部座標的半邊長，null = 不設限。
+     *  由 main.js 在載圖時依 meta.size 設定。 */
+    this.bounds = null;
+
     // 相機軌道
     this.camYaw = 0;
     this.camPitch = 0.24;
@@ -118,6 +122,30 @@ export class PlayerController {
   }
 
   /** 水平推開，避免走進建築 */
+  /**
+   * 空氣牆 —— 把玩家夾在現行地圖的範圍內。
+   *
+   * 分圖之後每張圖只有 400～600 公尺，而 groundHeight() 在圖外一樣有值
+   * （它是世界高度場），所以不夾的話玩家可以一直走出去，站在沒有貼圖的
+   * 遠景裙襬上（看起來就是一片白色地板），走到 1100 公尺外連裙襬都沒了。
+   *
+   * 夾座標而不是擺四道碰撞盒：一個地方改，18 張圖自動生效，
+   * 轉角也不會有漏洞。飛行同樣受限（飛出去問題一樣）。
+   *
+   * 牆的位置是圖邊往內 1 公尺。實測 36 個出入口的觸發圓心全都在牆內，
+   * 所以不會有「被牆擋住而搆不到出入口」的情況 —— 玩家只要進到
+   * 圓心 r 公尺內就會觸發，不必走到圓的外緣。
+   */
+  _clampToBounds() {
+    const b = this.bounds;
+    if (!b) return;
+    const hx = b.hx - 1, hz = b.hz - 1;
+    if (this.pos.x > hx)  { this.pos.x = hx;  if (this.vel.x > 0) this.vel.x = 0; }
+    if (this.pos.x < -hx) { this.pos.x = -hx; if (this.vel.x < 0) this.vel.x = 0; }
+    if (this.pos.z > hz)  { this.pos.z = hz;  if (this.vel.z > 0) this.vel.z = 0; }
+    if (this.pos.z < -hz) { this.pos.z = -hz; if (this.vel.z < 0) this.vel.z = 0; }
+  }
+
   _resolveCollisions() {
     const p = this.pos;
     for (const c of this.colliders) {
@@ -230,6 +258,7 @@ export class PlayerController {
 
     // --- 積分 ---
     this.pos.addScaledVector(this.vel, dt);
+    this._clampToBounds();
     this._resolveCollisions();
 
     // --- 地面 ---
