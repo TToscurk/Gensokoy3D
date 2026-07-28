@@ -653,6 +653,14 @@ export function buildCharacter(spec) {
   body.add(part(new THREE.CylinderGeometry(0.10, 0.13, 0.07, 14), cloth2,
     0, LEG_H + TORSO_H - 0.01, 0));
 
+  // 領口滾邊：貼頸的一圈細環，和風服的「襟」感
+  const collarTrim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.118, 0.013, 6, 18), toon(pal.trim || 0xf4f0e8));
+  collarTrim.position.set(0, LEG_H + TORSO_H + 0.025, 0);
+  collarTrim.rotation.x = Math.PI / 2;
+  collarTrim.castShadow = true;
+  body.add(collarTrim);
+
   const hakama = spec.bottom === 'hakama';
 
   // --- 裙 / 袴 ---
@@ -666,6 +674,14 @@ export function buildCharacter(spec) {
     skirt.name = 'skirt';
     skirt.userData.noMerge = true;   // 保住雙面
     body.add(skirt);
+
+    // 裙擺滾邊：一圈對比色細環，裙子和腿之間不再糊成一塊色
+    const hem = new THREE.Mesh(
+      new THREE.TorusGeometry(0.415, 0.016, 6, 22), toon(pal.trim || 0xf4f0e8));
+    hem.position.set(0, LEG_H - 0.14 - 0.20, 0);
+    hem.rotation.x = Math.PI / 2;
+    hem.castShadow = true;
+    body.add(hem);
   }
 
   // --- 腿：大腿 + 膝關節 + 小腿，腳分出腳跟與腳尖 ---
@@ -715,6 +731,14 @@ export function buildCharacter(spec) {
     fore.position.set(0, -upperLen, 0.008);
     fore.rotation.x = 0.14;   // 前臂微彎，站姿比一根直棍自然
     fore.add(part(tapered(0.04, 0.048, foreLen, 10), cloth, 0, -foreLen / 2, 0));
+
+    // 袖口滾邊（女巫袖、巫女袖都有白色袖口的印象）
+    const cuff = new THREE.Mesh(
+      new THREE.TorusGeometry(0.047, 0.011, 6, 14), toon(pal.trim || 0xf4f0e8));
+    cuff.position.set(0, -foreLen + 0.012, 0);
+    cuff.rotation.x = Math.PI / 2;
+    cuff.castShadow = true;
+    fore.add(cuff);
 
     const hand = new THREE.Group();
     hand.name = sx < 0 ? 'handL' : 'handR';
