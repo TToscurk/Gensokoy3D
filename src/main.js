@@ -267,7 +267,8 @@ async function buildOnce() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.pixelRatio));
 
   await manager.validate();
-  await manager.load('legacy_open', null, { style: 'boot' });
+  // 開機直接進分圖（神社）。legacy_open 仍是備援，可從設定面板傳送進去。
+  await manager.load('shrine', null, { style: 'boot' });
   syncWorldRefs();
 
   await progress(64, '建造神社、洋館、寺塔與白玉樓…');
@@ -289,7 +290,14 @@ async function buildOnce() {
   persistent.colliders = colliders;
   persistent.lanterns = lights;
 
-  restorePersistentLayer();
+  // 持久層建好後，只有開機落在舊世界才需要立刻裝回；落在分圖的話
+  // applyMapContent 已經把該藏的藏好了（此時建築才剛生出來，要補藏）。
+  if (manager.id === 'legacy_open') {
+    restorePersistentLayer();
+  } else {
+    const st = scene.getObjectByName('structures');
+    if (st) st.visible = false;
+  }
 
   // 燈籠光源池：只點亮離玩家最近的幾盞
   for (let i = 0; i < 8; i++) {
@@ -510,10 +518,20 @@ function startGame(charSpec) {
       '<div><b>E</b>對話／互動 <b>J</b>任務日誌 <b>M</b>地圖 <b>Esc</b>放開滑鼠 <b>O</b>設定</div>';
   }
 
-  // 從神社的參道起步 —— 讓第一眼就看到鳥居
-  const R = REGION_BY_ID.shrine;
-  player.teleport(R.x, R.z - 96);
-  player.camYaw = Math.PI;
+  // 從神社的參道起步 —— 讓第一眼就看到鳥居。
+  // 舊世界：傳到世界座標的參道點。分圖開機：manager.load 時玩家還沒出生，
+  // placePlayer 被跳過，選角後要補放一次該圖 spawn。
+  if (manager.id === 'legacy_open') {
+    const R = REGION_BY_ID.shrine;
+    player.teleport(R.x, R.z - 96);
+    player.camYaw = Math.PI;
+  } else {
+    const s = manager.mod?.meta?.spawn;
+    if (s) {
+      player.teleport(s.x, s.z);
+      if (s.facing !== undefined) player.camYaw = s.facing;
+    }
+  }
   state.grass?.warmup(player.pos);
 
   $('hud').classList.add('on');

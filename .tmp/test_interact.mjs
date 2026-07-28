@@ -47,6 +47,11 @@ for (let i = 0; i < 45; i++) {
 if (!running) { console.error('遊戲未進入 running'); process.exit(1); }
 console.log('game running: true');
 
+// 這套測的是舊世界的互動點（室內、索道），開機預設已是分圖（shrine），
+// 先切回 legacy_open，互動點才會註冊。
+await evaljs(`(async () => { await window.__gensokyo.manager.load('legacy_open', null, { style: 'walk' }); return 1; })()`, true);
+await wait(1500);
+
 // 拿 INTERIORS / WARP_NODES / INTERACTIVES 資料
 const dataRaw = await evaljs(`(async () => {
   const s = await import('./src/world/structures.js');
