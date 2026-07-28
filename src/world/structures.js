@@ -627,7 +627,8 @@ function scaleBoxUV(geo, w, h, d, k = 1.6) {
 
 function makeTerrainStairs(R, width, z0, z1, xOff = 0, run = 0.62) {
   const parts = [];
-  const n = Math.ceil(Math.abs(z1 - z0) / run);
+  const len = Math.abs(z1 - z0);
+  const n = Math.ceil(len / run);
   const dir = Math.sign(z1 - z0) || 1;
   for (let i = 0; i < n; i++) {
     const z = z0 + dir * (i + 0.5) * run;
@@ -637,17 +638,48 @@ function makeTerrainStairs(R, width, z0, z1, xOff = 0, run = 0.62) {
     scaleBoxUV(b, width, 0.95, run + 0.1, 1.5);
     b.translate(xOff, h - 0.35, z);
     parts.push(b);
-    // 兩側緣石：略高於踏面，視覺上把石段「框」出來
+  }
+
+  // 兩側斜欄（移植自 demo 的石段欄干）：實心石欄干沿坡而下，
+  // 每隔一段一根親柱，欄干頂比踏面高一公尺出頭。
+  // 舊版是每階一塊小緣石，遠看碎成一串方塊；整段斜欄才有「石段」的樣子。
+  const SEG = 7.5;
+  const m = Math.max(1, Math.round(len / SEG));
+  const segLen = len / m;
+  const railX = width / 2 + 0.55;
+  for (let i = 0; i < m; i++) {
+    const za = z0 + dir * i * segLen;
+    const zb = z0 + dir * (i + 1) * segLen;
+    const ha = terrainHeight(R.x + xOff, R.z + za);
+    const hb = terrainHeight(R.x + xOff, R.z + zb);
+    const slope = Math.hypot(segLen, hb - ha) + 0.35;
     for (const sx of [-1, 1]) {
-      const e = new THREE.BoxGeometry(0.5, 1.2, run + 0.1);
-      scaleBoxUV(e, 0.5, 1.2, run + 0.1, 0.8);
-      e.translate(xOff + sx * (width / 2 + 0.22), h - 0.28, z);
-      parts.push(e);
+      const r = new THREE.BoxGeometry(0.6, 1.4, slope);
+      scaleBoxUV(r, 0.6, 1.4, slope, 1.2);
+      r.rotateX(dir * Math.atan2(ha - hb, segLen));
+      r.translate(xOff + sx * railX, (ha + hb) / 2 + 0.53, (za + zb) / 2);
+      parts.push(r);
     }
   }
-  const m = new THREE.Mesh(BGU.mergeGeometries(parts), MAT.stoneWall);
-  m.castShadow = m.receiveShadow = true;
-  return m;
+  // 親柱：欄干的節點柱，立在每段斜欄的接縫與兩端
+  for (let i = 0; i <= m; i++) {
+    const z = z0 + dir * i * segLen;
+    const h = terrainHeight(R.x + xOff, R.z + z);
+    for (const sx of [-1, 1]) {
+      const p = new THREE.BoxGeometry(0.72, 1.7, 0.72);
+      scaleBoxUV(p, 0.72, 1.7, 0.72, 1.2);
+      p.translate(xOff + sx * railX, h + 0.85, z);
+      parts.push(p);
+      const cap = new THREE.BoxGeometry(0.95, 0.22, 0.95);
+      scaleBoxUV(cap, 0.95, 0.22, 0.95, 1.2);
+      cap.translate(xOff + sx * railX, h + 1.81, z);
+      parts.push(cap);
+    }
+  }
+
+  const mesh = new THREE.Mesh(BGU.mergeGeometries(parts), MAT.stoneWall);
+  mesh.castShadow = mesh.receiveShadow = true;
+  return mesh;
 }
 
 /** 博麗神社社殿 —— 屋頂移植自 D:\神社\shrine demo 的切妻造：
