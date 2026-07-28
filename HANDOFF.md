@@ -160,6 +160,16 @@ shrine ↔ sando ↔ village ↔ forest ↔ bamboo
 - `ui/mapview.js` ~~還是舊世界的俯視底圖~~ 已分圖化（見上條）
 - 有些建築會擋路（舊世界就有的問題，使用者判定可接受）
 - 使用者試玩回報：過場頻率可接受；天狗聚落落點已修（舊點在瀑布溪谷，改到文旁邊）
+- **地圖外圍白邊已修（2026-07-28）**：三個成因三帖藥 —— ① 滾動草格沒有邊界，
+  會種到圖外「有高度場沒地形」的虛空裡（白底浮黑點）：`vegetation.js` 新增
+  `setGrassBounds()`，`manager.load` 依 meta.size(X/Z) 設定（legacy_open 傳 null）；
+  ② 裙邊頂點色 ×0.42 壓暗＝黑牆：拿掉，改加 `emissive` 大氣散射補光（0.22），
+  由 `SkySystem.update` 每幀照太陽高度調強度、借霧色調色（`terrain.js` 的
+  `skirtMats` 登記簿），白天不黑牆、晚上不發亮；③ 地形剪影以下直接露出天空球
+  的爆白下半球：`buildTerrainSkirt` 現在回傳 Group，多墊一張 `terrain-haze-floor`
+  大圓盤（radius=outer×3，y=最低取樣-25，顏色取外圈平均），超過霧距自然溶進霧色。
+  另外內緣 30% 的環做肩部混合（從圖邊高度平滑過渡到世界地形），圖邊不再立起
+  又薄又黑的斷崖牆
 
 ---
 

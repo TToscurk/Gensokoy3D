@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { clamp, lerp } from '../core/noise.js';
+import { skirtMats } from './terrain.js';
 
 // 晝夜循環：太陽 / 月亮 / 星空 / 霧色
 // timeOfDay 以「分鐘」計，0 = 午夜，720 = 正午。
@@ -167,6 +168,14 @@ export class SkySystem {
     this.hemi.intensity = p.amb;
     this.hemi.color.copy(p.fog).lerp(new THREE.Color(0xffffff), 0.25);
     this.scene.fog.color.copy(p.fog);
+
+    // 裙邊的大氣散射補光跟著晝夜走：白天 0.22、夜晚收到近零，
+    // 顏色直接借霧色（黃昏轉暖、夜晚轉深藍，裙邊才不會離隊）
+    const skirtGlow = 0.22 * clamp(this.sunDir.y * 2 + 0.25, 0.03, 1);
+    for (const m of skirtMats) {
+      m.emissive.copy(p.fog);
+      m.emissiveIntensity = skirtGlow;
+    }
     this.renderer.toneMappingExposure = lerp(0.85, 0.55, clamp(this.sunDir.y, 0, 1));
 
     // 星星 / 月亮

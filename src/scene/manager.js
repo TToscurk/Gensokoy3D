@@ -4,7 +4,7 @@
 // 它只負責「世界是怎麼被建構與銷毀的」，以及過場順序不可被打亂。
 import { loadMapModule, validateGraph } from './registry.js';
 import { setHeightField } from '../world/terrain.js';
-import { setClearings } from '../world/vegetation.js';
+import { setClearings, setGrassBounds } from '../world/vegetation.js';
 
 export class SceneManager {
   /**
@@ -108,6 +108,11 @@ export class SceneManager {
       // 除草區同理：草地的 _fill 讀「現行清單」，記錯座標系就會在
       // 錯誤的地方挖洞。沒有自己那份的圖（legacy_open）傳 null 用舊世界的。
       setClearings(map.clearings || null);
+      // 草磚範圍也一併切換：滾動草格不設限會種到圖外虛空（白底浮黑點）。
+      // 沒有 size 的圖（legacy_open）不設限，沿用舊世界行為。
+      const gsx = mod.meta?.sizeX ?? mod.meta?.size ?? 0;
+      const gsz = mod.meta?.sizeZ ?? mod.meta?.size ?? 0;
+      setGrassBounds(gsx ? { cx: 0, cz: 0, hx: gsx / 2, hz: gsz / 2 } : null);
 
       // 6. 放置玩家（清速度與慣性由 hook 負責）
       if (opts.place !== false) {
@@ -147,6 +152,7 @@ export class SceneManager {
     // 避免呼叫端讀到已銷毀地圖的閉包
     setHeightField(null);
     setClearings(null);
+    setGrassBounds(null);
   }
 
   /** 用目前的畫質重建同一張圖，玩家留在原地（完全不碰玩家狀態）。 */

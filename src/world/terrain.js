@@ -303,8 +303,12 @@ function layerTextures() {
  *                'local' 的圖傳自己的 skirtHeightAt（負責平滑過渡）。
  * @param rings   環的圈數，越多越平滑
  */
-export function buildTerrainSkirt(inner, outer, sample, rings = 10) {
-  const inX = typeof inner === 'number' ? inner : inner.x;
+// 裙邊材質登記簿：SkySystem 每幀照太陽高度調自發光強度與顏色，
+// 白天是大氣散射補光、晚上收斂近零（不然夜裡裙邊會亮成一條白帶）。
+// 地圖卸載後留下的舊材質只是參照，量小不傷效能。
+export const skirtMats = [];
+
+export function buildTerrainSkirt(inner, outer, sample, rings = 10) {  const inX = typeof inner === 'number' ? inner : inner.x;
   const inZ = typeof inner === 'number' ? inner : inner.z;
   const seg = 48;                        // 每邊的分割數（遠景，夠用就好）
 
@@ -314,11 +318,18 @@ export function buildTerrainSkirt(inner, outer, sample, rings = 10) {
 
   // 從內緣到外緣，一圈一圈往外推。每一圈是一個方框，
   // 用「取最大軸」的方式把方框參數化成 (u, ring)。
+  const row0 = new Float64Array(seg + 1);   // 內緣高度：肩部混合的起點
   for (let r = 0; r <= rings; r++) {
     // 非線性外推：靠近地圖的地方密、遠處疏 —— 遠景本來就看不出細節
     const k = Math.pow(r / rings, 1.8);
     const hx = inX + (outer - inX) * k;
     const hz = inZ + (outer - inZ) * k;
+
+    // 肩部混合：圖邊外側的世界地形常常是斷崖（神社高原那種），
+    // 直接照取樣會在圖邊立起一圈又薄又黑的牆。前 30% 的環從
+    // 內緣高度平滑過渡到真實取樣，遠處才放給世界地形自由起伏。
+    let w = Math.min(1, (r / rings) / 0.3);
+    w = w * w * (3 - 2 * w);
 
     for (let i = 0; i <= seg; i++) {
       const u = i / seg;
@@ -330,11 +341,15 @@ export function buildTerrainSkirt(inner, outer, sample, rings = 10) {
       else if (a < 3) { x = hx - 2 * hx * (a - 2);   z = hz; }
       else            { x = -hx;                     z = hz - 2 * hz * (a - 3); }
 
-      const h = sample(x, z);
+      let h = sample(x, z);
+      if (r === 0) row0[i] = h;
+      else h = row0[i] + (h - row0[i]) * w;
       positions.push(x, h, z);
-      // 遠景不做 splat，用地表綜合取樣的宏觀色就好（成本低、色調對得上）
+      // 遠景不做 splat，用地表綜合取樣的宏觀色就好（成本低、色調對得上）。
+      // 不再壓暗：霧本身就會做空氣透視，壓暗只會讓裙邊在霧色背景前
+      // 變成一圈黑牆（與內圈地形的縫也對不上）。
       groundSample(x, z, h, 0.2, col, null, null);
-      colors.push(col.r * 0.42, col.g * 0.42, col.b * 0.42);
+      colors.push(col.r, col.g, col.b);
     }
   }
 
@@ -354,14 +369,44 @@ export function buildTerrainSkirt(inner, outer, sample, rings = 10) {
 
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true, roughness: 1.0, metalness: 0,
+    // 背光面只靠 hemi 會黑成一片（主地形的 shader 有自己的環境補光，
+    // 標準材質沒有）。墊一點霧色自發光模擬大氣散射，遠山背光面
+    // 才不會在霧色背景前黑成一塊剪影。
+    emissive: 0xaebfd0, emissiveIntensity: 0.22,
   });
+  skirtMats.push(mat);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'terrain-skirt';
   mesh.receiveShadow = false;
   mesh.castShadow = false;
   mesh.matrixAutoUpdate = false;
   mesh.updateMatrix();
-  return mesh;
+
+  // --- 谷地霧盤 -----------------------------------------------------------
+  // 天空球的下半球是爆白的霧霾色，地形剪影以下會直接露出它
+  // （地圖外圍那圈白邊）。墊一張大圓盤在最低地形之下：近處是谷地色，
+  // 超過霧距就溶進霧色，看起來就是一片延伸到地平線的迷霧低地。
+  let minH = Infinity;
+  for (let i = 0; i < positions.length / 3; i++) minH = Math.min(minH, positions[i * 3 + 1]);
+  // 盤色取最外圈的平均色 —— 跟著當地生態走，不會是一塊死綠
+  let ar = 0, ag = 0, ab = 0;
+  const nv = positions.length / 3;
+  for (let i = nv - cols; i < nv; i++) { ar += colors[i * 3]; ag += colors[i * 3 + 1]; ab += colors[i * 3 + 2]; }
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(outer * 3, 48).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(ar / cols, ag / cols, ab / cols), roughness: 1.0, metalness: 0,
+    })
+  );
+  floor.name = 'terrain-haze-floor';
+  floor.position.y = minH - 25;
+  floor.receiveShadow = false;
+  floor.castShadow = false;
+
+  const group = new THREE.Group();
+  group.name = 'terrain-skirt-group';
+  group.add(mesh, floor);
+  return group;
 }
 
 export function buildTerrain(segments, opts = {}) {

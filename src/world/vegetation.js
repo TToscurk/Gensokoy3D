@@ -636,6 +636,15 @@ export function addClearing(x, z, hw, hd) { clearings.push({ x, z, hw, hd }); }
 /** manager 載圖時呼叫。傳 null 還原成舊世界那一份。 */
 export function setClearings(list) { clearings = list || worldClearings; }
 
+// 草磚的種植範圍（地圖局部座標）。分圖之後草地是以玩家為中心滾動的，
+// 不設邊界的話玩家走近圖邊，草就會種到圖外那片「有高度、沒地形」的
+// 虛空裡 —— 在白色天空球上浮一堆黑點。manager 載圖時設成圖的半徑，
+// 舊世界（legacy_open）傳 null 不設限。
+let grassBounds = null;
+
+/** manager 載圖時呼叫。{ cx, cz, hx, hz } 或 null（不設限）。 */
+export function setGrassBounds(b) { grassBounds = b || null; }
+
 /** 收集一段建構期間登記的除草區，收完把原本的清單裝回去。
  *  分圖用：一張圖的除草區歸它自己，不污染別人。 */
 export function captureClearings(fn) {
@@ -732,8 +741,11 @@ export class GrassField {
       const z = z0 + rnd() * T;
       const h = groundHeight(x, z);
 
+      // 圖外不長草（虛空中的高度場沒有地形網格撐著）
+      let ok = !grassBounds ||
+        (Math.abs(x - grassBounds.cx) <= grassBounds.hx && Math.abs(z - grassBounds.cz) <= grassBounds.hz);
       // 不長在水裡、雪線之上，或裸露的陡坡上
-      let ok = h > WORLD.waterLevel + 0.8 && h < 132;
+      if (ok) ok = h > WORLD.waterLevel + 0.8 && h < 132;
       if (ok) {
         // 便宜的坡度估算：兩個額外取樣就夠，不必用 terrainNormal（那要四個）
         const dx = groundHeight(x + 2.5, z) - h;
