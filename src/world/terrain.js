@@ -308,12 +308,79 @@ function layerTextures() {
 // 地圖卸載後留下的舊材質只是參照，量小不傷效能。
 export const skirtMats = [];
 
+/**
+ * 遠景用的六層 splat 材質 —— 給裙襬用。
+ *
+ * 和主地形共用同一批 CC0 貼圖與同一套「世界座標 XZ 當 UV」的取樣方式，
+ * 所以裙襬的紋理會和圖內地形**接得起來**（同一個相位、同一個平鋪尺度），
+ * 不會在圖邊出現一條材質分界。這是分圖之後「地圖外是白色地板」的解法：
+ * 白不是因為沒地形，是因為裙襬本來只有頂點色、沒有貼圖。
+ *
+ * 精簡掉法線貼圖：主地形的法線本來就在 90 公尺外淡出，而裙襬整片都在
+ * 那之外 —— 少 6 次 fragment 貼圖讀取，對內顯是實在的節省。
+ */
+function farSplatMaterial() {
+  const sets = layerTextures();
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 1.0, metalness: 0,
+    // 背光面只靠 hemi 會黑成一片。墊一點霧色自發光模擬大氣散射，
+    // 遠山背光面才不會在霧色背景前黑成剪影。SkySystem 每幀調強度。
+    emissive: 0xaebfd0, emissiveIntensity: 0.22,
+  });
+  mat.onBeforeCompile = (shader) => {
+    for (let i = 0; i < 6; i++) {
+      shader.uniforms[`uDiff${i}`] = { value: sets[i].map };
+      shader.uniforms[`uScale${i}`] = { value: LAYERS[i].scale };
+    }
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+        attribute vec4 aSplatA;
+        attribute vec4 aSplatB;
+        varying vec4 vSplatA;
+        varying vec4 vSplatB;
+        varying vec3 vWPosF;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vSplatA = aSplatA;
+        vSplatB = aSplatB;`)
+      .replace('#include <worldpos_vertex>',
+        '#include <worldpos_vertex>\n  vWPosF = (modelMatrix * vec4(transformed,1.0)).xyz;');
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        uniform sampler2D uDiff0; uniform sampler2D uDiff1; uniform sampler2D uDiff2;
+        uniform sampler2D uDiff3; uniform sampler2D uDiff4; uniform sampler2D uDiff5;
+        uniform float uScale0; uniform float uScale1; uniform float uScale2;
+        uniform float uScale3; uniform float uScale4; uniform float uScale5;
+        varying vec4 vSplatA;
+        varying vec4 vSplatB;
+        varying vec3 vWPosF;`)
+      .replace('#include <color_fragment>', `
+        vec2 uvwF = vWPosF.xz;
+        vec3 albF =
+          texture2D(uDiff0, uvwF * uScale0).rgb * vSplatA.x +
+          texture2D(uDiff1, uvwF * uScale1).rgb * vSplatA.y +
+          texture2D(uDiff2, uvwF * uScale2).rgb * vSplatA.z +
+          texture2D(uDiff3, uvwF * uScale3).rgb * vSplatA.w +
+          texture2D(uDiff4, uvwF * uScale4).rgb * vSplatB.x +
+          texture2D(uDiff5, uvwF * uScale5).rgb * vSplatB.y;
+        #ifdef USE_COLOR
+          diffuseColor.rgb *= vColor;
+        #endif
+        diffuseColor.rgb *= albF;`);
+  };
+  skirtMats.push(mat);
+  return mat;
+}
+
+
 export function buildTerrainSkirt(inner, outer, sample, rings = 10) {  const inX = typeof inner === 'number' ? inner : inner.x;
   const inZ = typeof inner === 'number' ? inner : inner.z;
   const seg = 48;                        // 每邊的分割數（遠景，夠用就好）
 
   const positions = [], colors = [], indices = [];
+  const splatA = [], splatB = [];
   const col = new THREE.Color();
+  const a4 = [0, 0, 0, 0], b2 = [0, 0];
   const cols = seg + 1;
 
   // 從內緣到外緣，一圈一圈往外推。每一圈是一個方框，
@@ -345,11 +412,13 @@ export function buildTerrainSkirt(inner, outer, sample, rings = 10) {  const inX
       if (r === 0) row0[i] = h;
       else h = row0[i] + (h - row0[i]) * w;
       positions.push(x, h, z);
-      // 遠景不做 splat，用地表綜合取樣的宏觀色就好（成本低、色調對得上）。
-      // 不再壓暗：霧本身就會做空氣透視，壓暗只會讓裙邊在霧色背景前
-      // 變成一圈黑牆（與內圈地形的縫也對不上）。
-      groundSample(x, z, h, 0.2, col, null, null);
+      // 和主地形完全一樣的取樣：宏觀色 + 六層權重。
+      // 之前只取宏觀色、不取權重（材質也沒貼圖），那正是「圖外是白色地板」
+      // 的原因 —— 頂點色是「相對色調」(0.55~1.9)，沒有貼圖乘上去就會發白。
+      groundSample(x, z, h, 0.2, col, a4, b2);
       colors.push(col.r, col.g, col.b);
+      splatA.push(a4[0], a4[1], a4[2], a4[3]);
+      splatB.push(b2[0], b2[1], 0, 0);
     }
   }
 
@@ -364,17 +433,12 @@ export function buildTerrainSkirt(inner, outer, sample, rings = 10) {  const inX
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setAttribute('aSplatA', new THREE.Float32BufferAttribute(splatA, 4));
+  geo.setAttribute('aSplatB', new THREE.Float32BufferAttribute(splatB, 4));
   geo.setIndex(indices);
   geo.computeVertexNormals();
 
-  const mat = new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 1.0, metalness: 0,
-    // 背光面只靠 hemi 會黑成一片（主地形的 shader 有自己的環境補光，
-    // 標準材質沒有）。墊一點霧色自發光模擬大氣散射，遠山背光面
-    // 才不會在霧色背景前黑成一塊剪影。
-    emissive: 0xaebfd0, emissiveIntensity: 0.22,
-  });
-  skirtMats.push(mat);
+  const mat = farSplatMaterial();
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'terrain-skirt';
   mesh.receiveShadow = false;
@@ -388,10 +452,25 @@ export function buildTerrainSkirt(inner, outer, sample, rings = 10) {  const inX
   // 超過霧距就溶進霧色，看起來就是一片延伸到地平線的迷霧低地。
   let minH = Infinity;
   for (let i = 0; i < positions.length / 3; i++) minH = Math.min(minH, positions[i * 3 + 1]);
-  // 盤色取最外圈的平均色 —— 跟著當地生態走，不會是一塊死綠
+  // 盤色取最外圈的平均色 —— 跟著當地生態走，不會是一塊死綠。
+  //
+  // 注意頂點色是「相對色調」（groundSample 把它正規化成相對於各層平均色的
+  // 比值，約 0.55~1.9、平均落在 1.0 附近）。直接拿來當 RGB 會是**接近白**，
+  // 於是地平線上出現一大片白色平面 —— 那就是使用者說的「地圖外的白色地板」。
+  // 要乘回這一圈實際的貼圖平均色，才會是真正的地面顏色。
   let ar = 0, ag = 0, ab = 0;
   const nv = positions.length / 3;
-  for (let i = nv - cols; i < nv; i++) { ar += colors[i * 3]; ag += colors[i * 3 + 1]; ab += colors[i * 3 + 2]; }
+  for (let i = nv - cols; i < nv; i++) {
+    // 這一點的六層加權平均反照率
+    const wA = [splatA[i * 4], splatA[i * 4 + 1], splatA[i * 4 + 2], splatA[i * 4 + 3]];
+    const wB = [splatB[i * 4], splatB[i * 4 + 1]];
+    const w = [wA[0], wA[1], wA[2], wA[3], wB[0], wB[1]];
+    let mr = 0, mg = 0, mb = 0;
+    for (let L = 0; L < 6; L++) { mr += LAYER_MEAN[L][0] * w[L]; mg += LAYER_MEAN[L][1] * w[L]; mb += LAYER_MEAN[L][2] * w[L]; }
+    ar += colors[i * 3] * mr;
+    ag += colors[i * 3 + 1] * mg;
+    ab += colors[i * 3 + 2] * mb;
+  }
   const floor = new THREE.Mesh(
     new THREE.CircleGeometry(outer * 3, 48).rotateX(-Math.PI / 2),
     new THREE.MeshStandardMaterial({
