@@ -1,5 +1,6 @@
-// 地圖系統驗證：重載 → 選角 → 小地圖有內容 → M 開大地圖（17 地標）→
-// 點人間之里傳送 → 找緣一開主線 → 大地圖出現任務金點 → 效能
+// 地圖系統驗證（分圖版）：重載 → 選角 → 小地圖有內容 → M 開大地圖（19 節點連線圖）→
+// 點人間之里換圖 → 回神社 → 找緣一開主線 → 大地圖＋小地圖任務金點 → 效能
+// 連線圖細節（連線像素、.here、legacy 節點、異界紫點）由 test_bigmap.mjs 負責。
 import { cdp } from './cdp.mjs';
 
 const TMP = (await import('os')).tmpdir();   // 原本寫死作者機器的路徑
@@ -25,13 +26,13 @@ if (!booted) { page.close(); process.exit(1); }
 await evaljs(`document.querySelector('.card').click(); undefined`);
 await wait(3000);
 
-// 1. MapView 存在、底圖烘好
+// 1. MapView 存在、現行圖（神社）的小地圖底圖烘好
 const core = await evaljs(`(() => {
   const mv = window.__gensokyo.mapView;
-  return { exists: !!mv, bake: mv?.baked?.width ?? 0 };
+  return { exists: !!mv, bake: mv?.base?.cv?.width ?? 0 };
 })()`);
 check('MapView 已建立', core.exists);
-check(`底圖烘焙 (${core.bake}px)`, core.bake >= 256);
+check(`底圖烘焙 (${core.bake}px)`, core.bake >= 224);
 
 // 2. 小地圖真的畫了東西（不是全透明）
 await wait(500);
@@ -44,39 +45,48 @@ const mini = await evaljs(`(() => {
 })()`);
 check(`小地圖已繪製（${mini.opaque} 像素，均亮 ${mini.avg}）`, mini.opaque > 20000 && mini.avg > 20);
 
-// 3. M 開大地圖
+// 3. M 開大地圖（連線圖：18 分圖 + 舊世界 = 19 節點）
 await key('KeyM');
 await wait(400);
 const big = await evaljs(`(() => {
   const w = document.getElementById('bigmap');
-  return { on: w.classList.contains('on'), landmarks: w.querySelectorAll('.lm').length,
+  return { on: w.classList.contains('on'), nodes: w.querySelectorAll('.lm').length,
            playerLocked: !window.__gensokyo.player.enabled };
 })()`);
 check('大地圖開啟', big.on);
-check(`地標數 ${big.landmarks}/17`, big.landmarks === 17);
+check(`節點數 ${big.nodes}/19`, big.nodes === 19);
 check('開圖時玩家操作鎖住', big.playerLocked);
 await shot(TMP + '/map_big.png');
 
-// 4. 點「人間之里」傳送
-await evaljs(`(() => {
+// 4. 點「人間之里」節點 → 換圖（不再是同圖瞬移，是 manager.load）
+const clickNode = name => evaljs(`(() => {
   for (const b of document.querySelectorAll('#bigmap .lm'))
-    if (b.textContent.includes('人間之里')) { b.click(); return true; }
+    if (b.textContent.includes('${name}')) { b.click(); return true; }
   return false;
 })()`);
-await wait(600);
-const tp = await evaljs(`(() => {
-  const p = window.__gensokyo.player.pos;
-  return { x: Math.round(p.x), z: Math.round(p.z),
-           closed: !document.getElementById('bigmap').classList.contains('on'),
-           unlocked: window.__gensokyo.player.enabled };
-})()`);
-check(`傳送到人間之里 (${tp.x}, ${tp.z})`, Math.abs(tp.x - -80) < 120 && Math.abs(tp.z - 150) < 160);
+await clickNode('人間之里');
+await wait(2500);
+const tp = await evaljs(`(() => ({
+  id: window.__gensokyo.manager.id,
+  closed: !document.getElementById('bigmap').classList.contains('on'),
+  unlocked: window.__gensokyo.player.enabled,
+}))()`);
+check(`傳送到人間之里（manager.id=${tp.id}）`, tp.id === 'village');
 check('傳送後地圖關閉且解鎖', tp.closed && tp.unlocked);
 
-// 5. 開主線 → 任務金點出現（找緣一說話；scene 直接 Esc 關掉）
+// 5. 回神社（點節點），等等主線要在神社開
+await key('KeyM');
+await wait(400);
+await clickNode('博麗神社');
+await wait(2500);
+const back = await evaljs(`window.__gensokyo.manager.id`);
+check(`回到神社（manager.id=${back}）`, back === 'shrine');
+
+// 6. 開主線 → 任務金點出現（找緣一說話；scene 直接 Esc 關掉）
 await evaljs(`(() => {
   const g = window.__gensokyo;
   const n = g.npcs.npcs.find(v => v.spec.id === 'yoriichi');
+  if (!n) return false;
   g.player.teleport(n.root.position.x + 1.5, n.root.position.z + 1.5);
   return true;
 })()`);
@@ -101,7 +111,7 @@ await shot(TMP + '/map_quest.png');
 await key('KeyM');
 await wait(300);
 
-// 6. 小地圖也有金點（重查像素裡的金色）
+// 7. 小地圖也有金點（靈夢就在神社這張圖，同圖目標會畫；重查像素裡的金色）
 const miniGold = await evaljs(`(() => {
   const c = document.getElementById('minimap');
   const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
@@ -113,7 +123,7 @@ const miniGold = await evaljs(`(() => {
 check(`小地圖任務金點（${miniGold} 金色像素）`, miniGold > 4);
 await shot(TMP + '/map_mini.png');
 
-// 7. 效能
+// 8. 效能
 const perf = await evaljs(`(() => {
   const i = window.__gensokyo.renderer.info.render;
   return { fps: Math.round(window.__gensokyo.state.fps), calls: i.calls };

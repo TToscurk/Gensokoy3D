@@ -7,7 +7,7 @@ import { nearestInteractive, registerInteractive, clearInteractives } from './wo
 import { mergeStaticByMaterial } from './core/optimize.js';
 import { SkySystem } from './world/sky.js';
 import { buildCharacter, RIM } from './entities/model.js';
-import { PLAYABLE } from './entities/roster.js';
+import { PLAYABLE, ROSTER } from './entities/roster.js';
 import { NPCManager } from './entities/npc.js';
 import { PlayerController } from './player/controller.js';
 import { Dialogue } from './ui/dialogue.js';
@@ -260,6 +260,8 @@ function syncWorldRefs() {
   state.craterWater = m?.craterWater || null;
   state.riverWater = m?.riverWater || null;
   state.atmosphere = m?.atmosphere || null;
+  // 切圖後重烘小地圖底圖（分圖各自一張局部俯視圖；legacy_open 用世界烘焙）
+  mapView?.onMapChanged();
 }
 
 async function buildOnce() {
@@ -493,18 +495,27 @@ function startGame(charSpec) {
   // 地圖：小地圖圓盤 + M 鍵大地圖。任務目標解析成世界座標在這裡做——
   // 引擎只知道「找誰/去哪區」，座標是 NPC 實體與地區表才知道的事。
   mapView = new MapView({
-    player, npcs,
+    player, npcs, manager,
     questMarkers: () => quests.mapObjectives().map(o => {
       if (o.npc) {
+        // 目標是 NPC：分圖上要知道 NPC 住在哪張圖（roster 的 region）
+        const mapId = ROSTER.find(r => r.id === o.npc)?.region || null;
+        if (mapId && mapId === manager.id) {
+          const n = npcs.npcs.find(v => v.spec.id === o.npc);
+          if (n) return { x: n.root.position.x, z: n.root.position.z, mapId, main: o.main, label: o.title };
+          return null;
+        }
+        if (mapId) return { x: 0, z: 0, mapId, main: o.main, label: o.title };  // 別圖的目標：大地圖落在節點上
         const n = npcs.npcs.find(v => v.spec.id === o.npc);
-        if (n) return { x: n.root.position.x, z: n.root.position.z, main: o.main, label: o.title };
+        if (n) return { x: n.root.position.x, z: n.root.position.z, mapId: 'legacy_open', main: o.main, label: o.title };
       } else if (o.region) {
         const r = REGION_BY_ID[o.region];
-        if (r) return { x: r.x, z: r.z, main: o.main, label: o.title };
+        if (r) return { x: r.x, z: r.z, mapId: o.region, main: o.main, label: o.title };
       }
       return null;
     }).filter(Boolean),
     onWarp: r => warpTo(r),
+    onWarpMap: id => warpToMap(id),
   });
 
   // 不會飛的角色，把提示列的說明換掉
@@ -751,6 +762,21 @@ async function travelTo(portal) {
   };
   try {
     await manager.load(portal.to, portal.entry, { style: portal.style || 'walk' });
+    syncWorldRefs();
+  } finally {
+    warping = false;
+  }
+}
+
+/** 大地圖連線圖點節點：傳送到那張圖的預設入口。異界三張用 gate 過場。 */
+const MAP_WARP_GATE = ['netherworld', 'tenkai', 'higan'];
+async function warpToMap(mapId) {
+  if (warping || manager.loading || mapId === manager.id) return;
+  warping = true;
+  const style = MAP_WARP_GATE.includes(mapId) ? 'gate' : 'walk';
+  pendingDest = { zh: '', msg: style === 'gate' ? '正在跨越結界…' : '' };
+  try {
+    await manager.load(mapId, null, { style });
     syncWorldRefs();
   } finally {
     warping = false;

@@ -261,6 +261,13 @@
   #bigmap .lm:hover i{transform:scale(1.5);background:#fff}
   #bigmap .lm:hover span{color:var(--gold)}
   #bigmap .lm.remote i{background:#c090d8;box-shadow:0 0 8px rgba(192,144,216,.9)}
+  /* 連線圖：現行地圖節點（紅圈白點，跟玩家標記同色系）*/
+  #bigmap .lm.here i{background:#fff;border:2px solid var(--shrine-red);
+    width:11px;height:11px;box-shadow:0 0 12px rgba(255,255,255,.95)}
+  #bigmap .lm.here span{color:var(--gold)}
+  /* 舊世界節點：縮小、灰一點，當時光機彩蛋 */
+  #bigmap .lm.legacy i{width:6px;height:6px;background:#8d8194;box-shadow:none}
+  #bigmap .lm.legacy span{font-size:11px;font-weight:400;color:#8d8194}
   #bigmap .me{position:absolute;transform:translate(-50%,-50%);width:12px;height:12px;
     border-radius:50%;background:#fff;border:2px solid var(--shrine-red);
     box-shadow:0 0 10px rgba(255,255,255,.9);pointer-events:none;
@@ -330,7 +337,7 @@
   <div class="inner">
     <canvas id="bigmapCanvas"></canvas>
     <div class="labels"></div>
-    <div class="hint"><b>M</b>／<b>Esc</b>關閉 · 點地標傳送</div>
+    <div class="hint"><b>M</b>／<b>Esc</b>關閉 · 點地圖節點傳送 · 金色菱形＝任務目標所在</div>
   </div>
 </div>
 
@@ -406,7 +413,7 @@
   }
 }
 </script>
-<script type="module" src="./src/main.js?v=12"></script>
+<script type="module" src="./src/main.js?v=13"></script>
 <script>
   // three.js 已打包進 vendor/ 本機載入。若 20 秒還沒啟動，多半是檔案路徑或瀏覽器問題。
   setTimeout(function () {
