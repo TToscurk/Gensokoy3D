@@ -192,30 +192,46 @@ function cyl(rt, rb, h, mat, x = 0, y = 0, z = 0, seg = 10) {
 /** 鳥居 */
 export function makeTorii(scale = 1) {
   const g = new THREE.Group();
-  const H = 7 * scale, W = 5.4 * scale, r = 0.32 * scale;
+  // 尺度沿用 D:\神社\shrine 那份場景的比例（柱距 9.2m、笠木全寬 13.6m），
+  // 比原本的 5.4m 寬近一倍 —— 站在鳥居下的壓迫感差很多。
+  const H = 7.4 * scale, span = 4.6 * scale, r = 0.42 * scale;
 
-  g.add(cyl(r * 0.86, r, H, MAT.vermilion, -W / 2, H / 2, 0));
-  g.add(cyl(r * 0.86, r, H, MAT.vermilion, W / 2, H / 2, 0));
-
-  // 笠木（最上橫樑，兩端微微翹起）
-  const kasa = new THREE.Mesh(
-    new THREE.BoxGeometry(W * 1.42, 0.42 * scale, 0.78 * scale), MAT.vermilion);
-  kasa.position.y = H;
-  kasa.castShadow = kasa.receiveShadow = true;
-  const kp = kasa.geometry.attributes.position;
-  for (let i = 0; i < kp.count; i++) {
-    const x = kp.getX(i);
-    kp.setY(i, kp.getY(i) + Math.pow(Math.abs(x) / (W * 0.71), 2.4) * 0.62 * scale);
+  // 柱：微微向內傾（真實鳥居的「転び」），柱腳有根卷石
+  for (const sx of [-1, 1]) {
+    const p = cyl(r * 0.88, r, H, MAT.vermilion, sx * span, H / 2, 0, 16);
+    p.rotation.z = -sx * 0.02;
+    g.add(p);
+    g.add(cyl(r * 1.45, r * 1.45, 0.4 * scale, MAT.stone, sx * span, 0.2 * scale, 0, 16));
   }
-  kasa.geometry.computeVertexNormals();
-  g.add(kasa);
 
-  // 島木
-  g.add(box(W * 1.3, 0.3 * scale, 0.6 * scale, MAT.vermilion, 0, H - 0.36 * scale, 0));
-  // 貫（下橫樑）
-  g.add(box(W * 1.12, 0.26 * scale, 0.42 * scale, MAT.vermilion, 0, H * 0.72, 0));
-  // 額束
-  g.add(box(0.5 * scale, 0.9 * scale, 0.3 * scale, MAT.vermilion, 0, H * 0.84, 0));
+  // 貫（下橫樑）與額束
+  g.add(box(span * 2 + 1.1 * scale, 0.52 * scale, 0.62 * scale, MAT.vermilion, 0, H * 0.76, 0));
+  g.add(box(0.5 * scale, 1.5 * scale, 0.5 * scale, MAT.vermilion, 0, H * 0.76 + 1.0 * scale, 0));
+
+  // 島木＋笠木：兩根疊起的橫樑，兩端向上翹。
+  //
+  // 舊版是「一根盒子把頂點往上推」，翹角是連續的拋物線，看起來像被拉扯過。
+  // 改成分 14 段各自旋轉的短樑 —— 中央平直、末端才抬起（曲線用 |t|^3.2），
+  // 這才是真正的「反り」。段與段之間長度多給 4% 避免接縫露出。
+  const halfSpan = span + 2.2 * scale, SEG = 14;
+  for (const [yOff, hgt, dep] of [[0.04, 0.4, 0.78], [0.52, 0.5, 1.02]]) {
+    for (let i = 0; i < SEG; i++) {
+      const t0 = i / SEG * 2 - 1, t1 = (i + 1) / SEG * 2 - 1;
+      const curve = (t) => Math.pow(Math.abs(t), 3.2) * 1.15 * scale;
+      const x0 = t0 * halfSpan, x1 = t1 * halfSpan;
+      const y0 = H + (yOff * scale) + curve(t0), y1 = H + (yOff * scale) + curve(t1);
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      const m = box(len * 1.04, hgt * scale, dep * scale, MAT.vermilion,
+                    (x0 + x1) / 2, (y0 + y1) / 2, 0);
+      m.rotation.z = Math.atan2(y1 - y0, x1 - x0);
+      g.add(m);
+    }
+  }
+
+  // 注連繩橫掛在貫下方（原本鳥居是光禿的，只有拜殿前才有）
+  const nawa = makeShimenawa(span * 1.6, scale);
+  nawa.position.set(0, H * 0.76 - 0.42 * scale, 0);
+  g.add(nawa);
 
   return g;
 }
