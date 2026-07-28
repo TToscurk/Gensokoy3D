@@ -159,6 +159,26 @@ function buildHair(style, mat, group, head, pal = {}) {
   bang.castShadow = true;
   head.add(bang);
 
+  // 瀏海分片：整片瀏海殼是打底，上面再疊 5 束髮片、長短錯落 ——
+  // 沒有這層的話瀏海是一整片光滑曲面，看起來像安全帽。
+  // [x 位置, 髮片長, 外偏角(z), 前傾角(x)]
+  const FRINGE = [
+    [-0.168, 0.128, 0.30, 0.06],
+    [-0.088, 0.100, 0.12, 0.03],
+    [0.000, 0.088, 0.00, 0.02],
+    [0.088, 0.107, -0.12, 0.03],
+    [0.168, 0.121, -0.30, 0.06],
+  ];
+  for (const [fx, flen, rz, rx] of FRINGE) {
+    const g = tapered(0.012, 0.052, flen, 7);
+    g.translate(0, -flen / 2, 0);
+    const f = part(g, mat, fx, HEAD_R * 0.74, HEAD_R * 0.84);
+    f.scale.z = 0.55;                    // 壓扁貼臉，才是「髮片」不是「犄角」
+    f.rotation.z = rz;
+    f.rotation.x = rx;
+    head.add(f);
+  }
+
   const strand = (len, r, x, y, z, rx = 0, rz = 0) => {
     const g = tapered(r * 0.55, r, len, 8);
     g.translate(0, -len / 2, 0);
