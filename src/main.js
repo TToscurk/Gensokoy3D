@@ -550,6 +550,9 @@ function startGame(charSpec) {
       if (s.facing !== undefined) player.camYaw = s.facing;
     }
   }
+  // applyEnv 同理：manager.load 時玩家還沒出生，if(player) 判斷失敗，
+  // 空氣牆（player.bounds）從沒被設過 —— 選角後要在這裡補跑一次。
+  manager._hook('applyEnv', manager.mod?.meta, manager.map);
   state.grass?.warmup(player.pos);
 
   $('hud').classList.add('on');
