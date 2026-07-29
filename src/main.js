@@ -65,7 +65,8 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.72;
+const DEFAULT_EXPOSURE = 0.72;
+renderer.toneMappingExposure = DEFAULT_EXPOSURE;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // EffectComposer 每個 pass 都會呼叫 render()，而 render() 預設會重置統計，
@@ -116,6 +117,9 @@ const manager = new SceneManager({
       g?.warmup(player.pos);
     },
     applyEnv(meta, map) {
+      // 曝光：預設全專案統一 DEFAULT_EXPOSURE，圖自己想調亮/調暗才填 meta.exposure
+      // （目前只有神社用，其餘 17 張圖沒有這個欄位、行為不變）。
+      renderer.toneMappingExposure = meta?.exposure ?? DEFAULT_EXPOSURE;
       // 空氣牆：把玩家夾在這張圖的範圍內（見 controller._clampToBounds）。
       // legacy_open 的 2400 對應舊世界本來就有的環形山，設了也一致。
       if (player) {

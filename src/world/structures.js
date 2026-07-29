@@ -2599,4 +2599,10 @@ export function buildStructureSet(ids) {
   return { root, colliders, lights, staticLights, interiors, warps, clearings };
 }
 
-export { MAT, initMats, makeHall, makePaperLantern, makeFence, makeStairs };
+export {
+  MAT, initMats, makeHall, makePaperLantern, makeFence, makeStairs,
+  // 神社分圖（heightSpace:'local'）自己排版用——不走 buildStructureSet，
+  // 直接借共用元件庫蓋自己的版面（比照 sando.js 借 makeTorii/makeLantern 的模式）。
+  box, cyl, makeHakureiHaiden, makeKomainu, makeChozuya, makeEma,
+  makeSaisenBox, makeShimenawa, makeSuzuBell, makeTamagaki, makeHaidenOpen,
+};

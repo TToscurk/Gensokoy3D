@@ -7,7 +7,7 @@ export const ROSTER = [
   // ---------------------------------------------------------------- 博麗神社
   {
     id: 'reimu', zh: '博麗靈夢', en: 'REIMU HAKUREI', title: '樂園的美麗巫女',
-    region: 'shrine', offset: [5, 6], face: Math.PI * 0.9,
+    region: 'shrine', offset: [5, 5], face: Math.PI * 0.9,
     hair: 'long', hat: 'ribbon', wings: 'none', prop: 'gohei', float: false,
     palette: {
       hair: 0x3a2723, outfit: 0xd8464b, outfit2: 0xcf3f45, accent: 0xe05a5a,
@@ -33,7 +33,7 @@ export const ROSTER = [
   },
   {
     id: 'yukari', zh: '八雲紫', en: 'YUKARI YAKUMO', title: '境界的妖怪',
-    region: 'shrine', offset: [-19, -2], face: Math.PI * 0.35,
+    region: 'shrine', offset: [-15, -5], face: Math.PI * 0.35,
     hair: 'longStraight', hat: 'gap', wings: 'none', prop: 'parasol', float: true,
     palette: {
       hair: 0xf0e0a0, outfit: 0xc0a0dc, outfit2: 0xf0e8f4, accent: 0xd8b8e8,
