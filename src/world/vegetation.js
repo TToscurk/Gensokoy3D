@@ -203,7 +203,13 @@ function speciesAt(x, z, rnd) {
   const id = reg?.id;
   if (id === 'forest')      return clusterSpecies(x, z, [['gnarled', 0.8], ['cedar', 0.2]], rnd, 0.022);
   if (id === 'netherworld') return 'sakura';
-  if (id === 'shrine')      return clusterSpecies(x, z, [['cedar', 0.5], ['maple', 0.5]], rnd, 0.03);
+  // 神社：社殿後方（呼應原作賞櫻勝地的描寫）偏重櫻花，參道與前庭仍以杉楓為主
+  if (id === 'shrine') {
+    const dz = z - REGION_BY_ID.shrine.z;
+    const behindGrove = dz > 12;
+    if (behindGrove) return clusterSpecies(x, z, [['sakura', 0.65], ['maple', 0.35]], rnd, 0.03);
+    return clusterSpecies(x, z, [['cedar', 0.55], ['maple', 0.30], ['sakura', 0.15]], rnd, 0.026);
+  }
   if (id === 'bamboo')      return null;             // 竹林另外處理
   if (id === 'lake')        return rnd() < 0.4 ? 'broadleaf' : null;
   if (id === 'village')     return rnd() < 0.25 ? 'broadleaf' : null;

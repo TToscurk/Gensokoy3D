@@ -185,7 +185,14 @@ export function groundSample(x, z, h, slope, out, splatA, splatB) {
     if (reg.id === 'forest')      { out.lerp(C.forest, w * 0.85); fW = w * 0.85; }
     else if (reg.id === 'netherworld') { out.lerp(C.sakura, w * 0.6); snW = Math.max(snW, w * 0.75); }
     else if (reg.id === 'bamboo') { out.lerp(C.bamboo, w * 0.7); fW = w * 0.7; }
-    else if (reg.id === 'shrine') { out.lerp(C.path, w * 0.3); pW = w * 0.32; }
+    // 神社：境內石板參道混石苔，外緣坡地混岩層——避免整片神社地皮同一種灰
+    else if (reg.id === 'shrine') {
+      const nearCore = 1 - smoothstep(0, reg.radius * 0.55, d);
+      out.lerp(C.path, w * (0.22 + 0.18 * nearCore));
+      pW = w * (0.24 + 0.2 * nearCore);
+      rW = Math.max(rW, w * 0.14 * (1 - nearCore));
+      fW = Math.max(fW, w * 0.10 * nearCore);
+    }
     else if (reg.id === 'sdm')    { out.lerp(C.rockDark, w * 0.3); rW = w * 0.3; }
     else if (reg.id === 'village')    { out.lerp(C.path, w * 0.3); pW = Math.max(pW, w * 0.38); }
     else if (reg.id === 'muenzuka')   { out.lerp(C.path, w * 0.4); pW = Math.max(pW, w * 0.45); }

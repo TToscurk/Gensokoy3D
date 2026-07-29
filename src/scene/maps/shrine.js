@@ -22,7 +22,7 @@ export const meta = {
   id: 'shrine',
   zh: '博麗神社',
   en: 'HAKUREI SHRINE',
-  size: 420,
+  size: 480,
   spawn: { x: 0, z: 60, facing: Math.PI },
   fog: R.fog,
   accent: R.accent,
@@ -77,9 +77,44 @@ export const portals = [
   },
 ];
 
-/** 這張圖的地形高度場：局部座標進、世界高度出。 */
+function smoothstep(a, b, x) {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+function angleDiff(a, b) {
+  return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+}
+
+// 東側（結界之外，三個出口都不在這個方位）疊加漸強的地形抬升，
+// 做出「走不到的地方是懸崖」的視覺封閉，取代原本開闊到底其實是空氣的處理。
+// 方位角直接從 portals 的觸發點算，不寫死角度——出入口調整位置時這裡自動跟著避開。
+const PORTAL_BEARINGS = portals.map(p => Math.atan2(p.trigger.x, p.trigger.z));
+const WALL_BEARING = Math.PI / 2;          // +X＝東（config.js 座標約定）
+const WALL_HALF_ARC = 55 * Math.PI / 180;
+
+function bearingGate(x, z) {
+  const b = Math.atan2(x, z);
+  let gate = 1 - smoothstep(0, WALL_HALF_ARC, angleDiff(b, WALL_BEARING));
+  for (const pb of PORTAL_BEARINGS) {
+    gate *= smoothstep(18 * Math.PI / 180, 32 * Math.PI / 180, angleDiff(b, pb));
+  }
+  return gate;
+}
+
+/** 這張圖的地形高度場：局部座標進、世界高度出。
+ *  東側方位在半徑 170（安全避開建築 collider 與植被核心排除區）到 225
+ *  （略小於 half=240，留一圈緩衝）之間陡升約 140m——只是視覺，玩家真正的
+ *  邊界仍是 meta.size 換算出的空氣牆（main.js applyEnv）。這裡只是讓那道
+ *  看不見的牆長得像一面真的懸崖；陡坡處 groundSample() 既有的岩石貼圖判斷
+ *  會自動套用，不用另外處理貼圖。
+ *  抬升量刻意抓比境內台地（elev≈104）高出許多——實測東側方位的原始地形
+ *  是一片窪地（最低約 43），只抬到跟台地齊平的話從境內看只是一片緩坡，
+ *  讀不出「這裡是懸崖」，所以要蓋過台地高度、讓它在天際線上真的凸出來。 */
 export function heightAt(x, z) {
-  return terrainHeight(x + ORIGIN.x, z + ORIGIN.z);
+  const base = terrainHeight(x + ORIGIN.x, z + ORIGIN.z);
+  const d = Math.hypot(x, z);
+  const radial = smoothstep(170, 225, d);
+  return base + radial * bearingGate(x, z) * 140;
 }
 
 export async function build(ctx) {

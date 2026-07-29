@@ -913,160 +913,168 @@ function buildShrine(colliders, lights, staticLights) {
   const g = new THREE.Group();
   g.name = 'shrine';
   const base = R.elev;
+  // 整體放大係數：地形腹地與建築一起變大（2026-07 使用者要求）。
+  // floorTop 不跟著縮放——makeHakureiHaiden 內部的高床高度是寫死常數，
+  // 不是靠 wallH 參數換算出來的，縮放它會讓碰撞盒跟視覺地板對不上。
+  const S = 1.18;
+  const hAt = (dx, dz) => terrainHeight(R.x + dx * S, R.z + dz * S);
 
   // 境內平坦參道（鳥居之內）；鳥居之外換成貼坡長石段
-  g.add(buildGroundPath(R, 7, -84, 23, 0, MAT.stone));
-  g.add(makeTerrainStairs(R, 7, -84, -186));
+  g.add(buildGroundPath(R, 7 * S, -84 * S, 23 * S, 0, MAT.stone));
+  g.add(makeTerrainStairs(R, 7 * S, -84 * S, -186 * S, 0, 0.62 * S));
 
   // 三座鳥居：最大的一座立在石段頂端——結界與俗界的分界；
   // 越靠近社殿越大是舊版的視覺節奏，保留中、內兩座。
   [[-84, 1.0], [-48, 1.15], [-20, 1.35]].forEach(([z, s]) => {
-    const ty = terrainHeight(R.x, R.z + z);
-    const t = makeTorii(s);
-    t.position.set(0, ty, z);
+    const ss = s * S;
+    const ty = hAt(0, z);
+    const t = makeTorii(ss);
+    t.position.set(0, ty, z * S);
     g.add(t);
-    const W = 5.4 * s / 2;
-    colliders.push({ x: R.x - W, z: R.z + z, r: 0.4 * s, y: ty, h: 7 * s });
-    colliders.push({ x: R.x + W, z: R.z + z, r: 0.4 * s, y: ty, h: 7 * s });
+    const W = 5.4 * ss / 2;
+    colliders.push({ x: R.x - W, z: R.z + z * S, r: 0.4 * ss, y: ty, h: 7 * ss });
+    colliders.push({ x: R.x + W, z: R.z + z * S, r: 0.4 * ss, y: ty, h: 7 * ss });
   });
 
   // 社殿：高床式木造白壁（考據見 makeHakureiHaiden）
-  const hall = makeHakureiHaiden(12, 9, 3.6);
-  hall.position.set(0, base, 16);
+  const hall = makeHakureiHaiden(12 * S, 9 * S, 3.6 * S);
+  hall.position.set(0, base, 16 * S);
   g.add(hall);
 
   // —— 社殿碰撞（walk:true = 可踏上去的平台，controller 會把地面吸附到頂面）——
-  const floorTop = 1.5;
+  const floorTop = 1.5;              // 見上方 S 註解：不隨 S 縮放
+  const wallH = 3.6 * S;
   // 本體地板 + 緣側
-  colliders.push({ x: R.x, z: R.z + 16, hw: 6.6, hd: 5.1, y: base, h: floorTop, walk: true });
-  colliders.push({ x: R.x, z: R.z + 16 - 5.25, hw: 6.6, hd: 0.75, y: base, h: floorTop, walk: true });
+  colliders.push({ x: R.x, z: R.z + 16 * S, hw: 6.6 * S, hd: 5.1 * S, y: base, h: floorTop, walk: true });
+  colliders.push({ x: R.x, z: R.z + (16 - 5.25) * S, hw: 6.6 * S, hd: 0.75 * S, y: base, h: floorTop, walk: true });
   // 正面木階：5 級，每級各自是可走平台
   for (let i = 0; i < 5; i++) {
     colliders.push({
-      x: R.x, z: R.z + 16 - 8.0 + i * 0.5, hw: 1.3, hd: 0.27,
+      x: R.x, z: R.z + (16 - 8.0 + i * 0.5) * S, hw: 1.3 * S, hd: 0.27 * S,
       y: base, h: (i + 1) * (floorTop / 5), walk: true,
     });
   }
   // 牆：後牆、左右牆、正面兩側障子（從地面一路擋到牆頂，地板上下都進不去）
-  const wallH = 3.6;
-  colliders.push({ x: R.x, z: R.z + 16 + 4.4, hw: 6, hd: 0.2, y: base, h: floorTop + wallH });
-  colliders.push({ x: R.x - 5.9, z: R.z + 16, hw: 0.2, hd: 4.5, y: base, h: floorTop + wallH });
-  colliders.push({ x: R.x + 5.9, z: R.z + 16, hw: 0.2, hd: 4.5, y: base, h: floorTop + wallH });
-  colliders.push({ x: R.x - 3.9, z: R.z + 16 - 4.4, hw: 2.1, hd: 0.15, y: base, h: floorTop + wallH });
-  colliders.push({ x: R.x + 3.9, z: R.z + 16 - 4.4, hw: 2.1, hd: 0.15, y: base, h: floorTop + wallH });
+  colliders.push({ x: R.x, z: R.z + (16 + 4.4) * S, hw: 6 * S, hd: 0.2 * S, y: base, h: floorTop + wallH });
+  colliders.push({ x: R.x - 5.9 * S, z: R.z + 16 * S, hw: 0.2 * S, hd: 4.5 * S, y: base, h: floorTop + wallH });
+  colliders.push({ x: R.x + 5.9 * S, z: R.z + 16 * S, hw: 0.2 * S, hd: 4.5 * S, y: base, h: floorTop + wallH });
+  colliders.push({ x: R.x - 3.9 * S, z: R.z + (16 - 4.4) * S, hw: 2.1 * S, hd: 0.15 * S, y: base, h: floorTop + wallH });
+  colliders.push({ x: R.x + 3.9 * S, z: R.z + (16 - 4.4) * S, hw: 2.1 * S, hd: 0.15 * S, y: base, h: floorTop + wallH });
   // 緣側前沿一對柱
-  colliders.push({ x: R.x - 2.25, z: R.z + 16 - 5.95, r: 0.24, y: base, h: floorTop + wallH });
-  colliders.push({ x: R.x + 2.25, z: R.z + 16 - 5.95, r: 0.24, y: base, h: floorTop + wallH });
+  colliders.push({ x: R.x - 2.25 * S, z: R.z + (16 - 5.95) * S, r: 0.24 * S, y: base, h: floorTop + wallH });
+  colliders.push({ x: R.x + 2.25 * S, z: R.z + (16 - 5.95) * S, r: 0.24 * S, y: base, h: floorTop + wallH });
 
   // 賽銭箱：石座木格柵蓋，就在社殿木階正前方（與階梯碰撞區保持間隙）
-  const saisenY = terrainHeight(R.x, R.z + 7.0);
-  const saisen = makeSaisenBox(1.1);
-  saisen.position.set(0, saisenY, 7.0);
+  const saisenY = hAt(0, 7.0);
+  const saisen = makeSaisenBox(1.1 * S);
+  saisen.position.set(0, saisenY, 7.0 * S);
   g.add(saisen);
-  colliders.push({ x: R.x, z: R.z + 7.0, hw: 1.5, hd: 0.65, y: saisenY, h: 1.4 });
+  colliders.push({ x: R.x, z: R.z + 7.0 * S, hw: 1.5 * S, hd: 0.65 * S, y: saisenY, h: 1.4 * S });
 
   // 注連繩橫掛在緣側前柱之間，中央垂鈴緒
-  const nawa = makeShimenawa(4.6);
-  nawa.position.set(0, base + floorTop + 3.3, 16 - 5.95);
+  const nawa = makeShimenawa(4.6 * S);
+  nawa.position.set(0, base + floorTop + 3.3 * S, (16 - 5.95) * S);
   g.add(nawa);
-  const suzu = makeSuzuBell(1.15);
-  suzu.position.set(0, base + floorTop + 3.28, 16 - 5.95);
+  const suzu = makeSuzuBell(1.15 * S);
+  suzu.position.set(0, base + floorTop + 3.28 * S, (16 - 5.95) * S);
   g.add(suzu);
 
   INTERIORS.push({
     id: 'hakurei-haiden', zh: '博麗神社拜殿', en: 'HAKUREI SHRINE — HAIDEN',
-    enter: { x: R.x, z: R.z + 10.4 },
-    inside: { x: R.x, y: base + floorTop + 0.7, z: R.z + 16 },
-    exit: { x: R.x, z: R.z + 5.5 },
+    enter: { x: R.x, z: R.z + 10.4 * S },
+    inside: { x: R.x, y: base + floorTop + 0.7 * S, z: R.z + 16 * S },
+    exit: { x: R.x, z: R.z + 5.5 * S },
   });
 
   // 殿內常亮暖燈（照亮榻榻米與神龕，白天屋簷陰影下也看得見內部）
-  const hallLight = new THREE.PointLight(0xffc27a, 2.2, 13, 2.0);
-  hallLight.position.set(R.x, base + floorTop + 2.4, R.z + 16);
+  const hallLight = new THREE.PointLight(0xffc27a, 2.2, 13 * S, 2.0);
+  hallLight.position.set(R.x, base + floorTop + 2.4 * S, R.z + 16 * S);
   staticLights.push(hallLight);
   // 簷下紙燈籠的夜燈（加入夜間光源池）
   for (const sx of [-1, 1]) {
-    lights.push({ obj: null, x: R.x + sx * 2.25, y: base + floorTop + 2.8, z: R.z + 16 - 6.0, color: 0xffb060, power: 4 });
+    lights.push({ obj: null, x: R.x + sx * 2.25 * S, y: base + floorTop + 2.8 * S, z: R.z + (16 - 6.0) * S, color: 0xffb060, power: 4 });
   }
 
   // 狛犬一對，夾著正面木階（一張口一閉口，「阿吽」）
-  const komY = terrainHeight(R.x, R.z + 8.9);
-  const komA = makeKomainu(1.0, true);
-  komA.position.set(-3.6, komY, 8.9);
+  const komY = hAt(0, 8.9);
+  const komA = makeKomainu(1.0 * S, true);
+  komA.position.set(-3.6 * S, komY, 8.9 * S);
   komA.rotation.y = 0.3;
   g.add(komA);
-  const komB = makeKomainu(1.0, false);
-  komB.position.set(3.6, komY, 8.9);
+  const komB = makeKomainu(1.0 * S, false);
+  komB.position.set(3.6 * S, komY, 8.9 * S);
   komB.rotation.y = -0.3;
   g.add(komB);
-  colliders.push({ x: R.x - 3.6, z: R.z + 8.9, r: 0.9, y: komY, h: 3.0 });
-  colliders.push({ x: R.x + 3.6, z: R.z + 8.9, r: 0.9, y: komY, h: 3.0 });
+  colliders.push({ x: R.x - 3.6 * S, z: R.z + 8.9 * S, r: 0.9 * S, y: komY, h: 3.0 * S });
+  colliders.push({ x: R.x + 3.6 * S, z: R.z + 8.9 * S, r: 0.9 * S, y: komY, h: 3.0 * S });
 
   // 手水舍：進入社殿前先淨手，位置在中鳥居與社殿之間
-  const chozY = terrainHeight(R.x + 6.4, R.z - 4);
-  const choz = makeChozuya(1.0);
-  choz.position.set(6.4, chozY, -4);
+  const chozY = hAt(6.4, -4);
+  const choz = makeChozuya(1.0 * S);
+  choz.position.set(6.4 * S, chozY, -4 * S);
   g.add(choz);
-  colliders.push({ x: R.x + 6.4, z: R.z - 4, hw: 2.7, hd: 2.0, y: chozY, h: 4.4 });
+  colliders.push({ x: R.x + 6.4 * S, z: R.z - 4 * S, hw: 2.7 * S, hd: 2.0 * S, y: chozY, h: 4.4 * S });
 
-  // 繪馬掛：參道另一側，與手水舍相對
-  const emaY = terrainHeight(R.x - 6.5, R.z - 2);
+  // 繪馬掛：參道另一側，與手水舍相對（makeEma 沒有 scale 參數，用 object scale）
+  const emaY = hAt(-6.5, -2);
   const ema = makeEma();
-  ema.position.set(-6.5, emaY, -2);
+  ema.scale.setScalar(S);
+  ema.position.set(-6.5 * S, emaY, -2 * S);
   ema.rotation.y = 0.5;
   g.add(ema);
-  colliders.push({ x: R.x - 6.5, z: R.z - 2, hw: 1.9, hd: 0.5, y: emaY, h: 2.2 });
+  colliders.push({ x: R.x - 6.5 * S, z: R.z - 2 * S, hw: 1.9 * S, hd: 0.5 * S, y: emaY, h: 2.2 * S });
 
-  // 石燈籠列：貼著境內參道，每盞各自取樣腳下地形高度
-  for (let i = 0; i < 6; i++) {
-    const z = -72 + i * 12;
+  // 石燈籠列：貼著境內參道。3 對（原本 6 對減半、間距加倍），
+  // 讓樹取代密集燈籠當視覺主體（2026-07 使用者要求縮減）。
+  for (let i = 0; i < 3; i++) {
+    const z = -72 + i * 24;
     for (const sx of [-1, 1]) {
-      const ly = terrainHeight(R.x + sx * 5.6, R.z + z);
-      const L = makeLantern(1.0);
-      L.position.set(sx * 5.6, ly, z);
+      const ly = hAt(sx * 5.6, z);
+      const L = makeLantern(1.0 * S);
+      L.position.set(sx * 5.6 * S, ly, z * S);
       g.add(L);
-      lights.push({ obj: L, x: R.x + sx * 5.6, y: ly + 1.9, z: R.z + z, color: 0xffb066, power: 5 });
+      lights.push({ obj: L, x: R.x + sx * 5.6 * S, y: ly + 1.9 * S, z: R.z + z * S, color: 0xffb066, power: 5 });
     }
   }
-  // 石段兩側也立燈籠（夜裡下山的路看得見）
-  for (const z of [-104, -128, -152, -176]) {
-    const ly = terrainHeight(R.x - 4.6, R.z + z);
-    const L = makeLantern(0.9);
-    L.position.set(-4.6, ly, z);
+  // 石段兩側：只留起訖點兩盞，空出來的中段交給沿階老樹
+  for (const z of [-104, -176]) {
+    const ly = hAt(-4.6, z);
+    const L = makeLantern(0.9 * S);
+    L.position.set(-4.6 * S, ly, z * S);
     g.add(L);
-    lights.push({ obj: L, x: R.x - 4.6, y: ly + 1.7, z: R.z + z, color: 0xffb066, power: 4 });
+    lights.push({ obj: L, x: R.x - 4.6 * S, y: ly + 1.7 * S, z: R.z + z * S, color: 0xffb066, power: 4 });
   }
 
   // 守矢神社分社（原作：本殿旁的小分社）+ 迷你鳥居
-  const sub = makeHaidenOpen(4.5, 3.6, 2.5, { roofH: 2.2, open: -1 });
-  sub.position.set(14, terrainHeight(R.x + 14, R.z + 18), 18);
+  const sub = makeHaidenOpen(4.5 * S, 3.6 * S, 2.5 * S, { roofH: 2.2 * S, open: -1 });
+  sub.position.set(14 * S, hAt(14, 18), 18 * S);
   g.add(sub);
-  colliders.push({ x: R.x + 14, z: R.z + 18 + 1.7, hw: 2.25, hd: 0.15, y: base, h: 3 });
-  colliders.push({ x: R.x + 14 - 2.15, z: R.z + 18, hw: 0.15, hd: 1.8, y: base, h: 3 });
-  colliders.push({ x: R.x + 14 + 2.15, z: R.z + 18, hw: 0.15, hd: 1.8, y: base, h: 3 });
-  const miniT = makeTorii(0.55);
-  miniT.position.set(14, terrainHeight(R.x + 14, R.z + 11), 11);
+  colliders.push({ x: R.x + 14 * S, z: R.z + (18 + 1.7) * S, hw: 2.25 * S, hd: 0.15 * S, y: base, h: 3 * S });
+  colliders.push({ x: R.x + (14 - 2.15) * S, z: R.z + 18 * S, hw: 0.15 * S, hd: 1.8 * S, y: base, h: 3 * S });
+  colliders.push({ x: R.x + (14 + 2.15) * S, z: R.z + 18 * S, hw: 0.15 * S, hd: 1.8 * S, y: base, h: 3 * S });
+  const miniT = makeTorii(0.55 * S);
+  miniT.position.set(14 * S, hAt(14, 11), 11 * S);
   g.add(miniT);
 
   // 切妻倉庫（原作：社殿旁的獨立平屋倉庫）
-  const store = makeHall(6, 5, 2.8, { roofMat: MAT.roofBlack, wallMat: MAT.planks, roofH: 2.4 });
-  store.position.set(-14, terrainHeight(R.x - 14, R.z + 20), 20);
+  const store = makeHall(6 * S, 5 * S, 2.8 * S, { roofMat: MAT.roofBlack, wallMat: MAT.planks, roofH: 2.4 * S });
+  store.position.set(-14 * S, hAt(-14, 20), 20 * S);
   store.rotation.y = 0.18;
   g.add(store);
-  colliders.push({ x: R.x - 14, z: R.z + 20, hw: 3.5, hd: 3.0, y: base, h: 5.5, rotY: 0.18 });
+  colliders.push({ x: R.x - 14 * S, z: R.z + 20 * S, hw: 3.5 * S, hd: 3.0 * S, y: base, h: 5.5 * S, rotY: 0.18 });
 
   // 側屋（靈夢住的地方）
-  const side = makeHall(6.5, 6, 3.0, { roofH: 2.6 });
-  side.position.set(-13, base - 0.3, 6);
+  const side = makeHall(6.5 * S, 6 * S, 3.0 * S, { roofH: 2.6 * S });
+  side.position.set(-13 * S, base - 0.3, 6 * S);
   side.rotation.y = 0.3;
   g.add(side);
-  colliders.push({ x: R.x - 13, z: R.z + 6, hw: 3.8, hd: 3.6, y: base, h: 6 });
+  colliders.push({ x: R.x - 13 * S, z: R.z + 6 * S, hw: 3.8 * S, hd: 3.6 * S, y: base, h: 6 * S });
 
   // 玉垣：朱紅圍籬（村裡的木柵欄是另一種）
   for (const sx of [-1, 1]) {
-    const f = makeTamagaki(40);
+    const f = makeTamagaki(40 * S);
     f.rotation.y = Math.PI / 2;
-    f.position.set(sx * 22, base, 0);
+    f.position.set(sx * 22 * S, base, 0);
     g.add(f);
   }
 
