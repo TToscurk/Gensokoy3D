@@ -1,4 +1,7 @@
 @echo off
+REM cmd 預設編碼不是 UTF-8，檔案是 UTF-8 存的中文字會被讀錯、
+REM 甚至把某些符號誤判成指令 → 跳出「不是內部或外部命令」。
+chcp 65001 >nul
 REM 幻想鄉 3D —— 本地啟動腳本
 REM ES module 不能用 file:// 開啟，必須經過 HTTP 伺服器。
 
