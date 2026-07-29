@@ -177,7 +177,10 @@ export async function build(ctx) {
   // 樹只要這一帶的。沿用舊世界密度公式的話，480×480 只分得到約 33 棵，
   // 散在整張圖幾乎看不到——舊世界密度是給「大片荒野」用的基準，神社是
   // 使用者想要有內容感的展示圖，密度另外加乘（2026-07 使用者要求）。
-  const density = 4 * q.trees / (2400 * 0.92) ** 2;
+  // 樹是 InstancedMesh，一個樹種固定 1 個 draw call、跟棵數無關（〈坑〉心法：
+  // draw call 才是瓶頸，不是三角形數），所以低畫質沒必要按 q.trees 比例砍到
+  // 只剩 700——用 2000 當下限，低/中畫質也能看滿，高畫質仍可以更多。
+  const density = 5 * Math.max(q.trees, 2000) / (2400 * 0.92) ** 2;
   const trees = Math.round(density * meta.size ** 2);
   // 植被的 plantable() 讀「現行除草區清單」。這張圖的除草區是世界座標
   // （還沒換算前的 st.clearings），而下種也在世界座標，兩邊一致。
