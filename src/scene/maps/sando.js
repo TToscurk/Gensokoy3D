@@ -1,27 +1,38 @@
-// 參道 —— 分圖改造的第二張圖，也是第一張「舊世界裡不存在」的圖。
+// 參道 —— 神社與人間之里之間的連接圖，2026-07 重做。
 //
-// 博麗神社的石段往下延伸出去的那段長坡。舊世界沒有這塊地：那一帶
-// 實測是側傾的山坡（橫向 100m 內落差 57m），直接切出來會走得很怪。
-// 所以這張圖有**自己的高度場** —— 這正是分圖真正的價值：
-// 地區之間終於能有「路」，而不是硬把地形壓平。
+// 舊版是「舊世界那道側傾山坡」切出來的一條直線谷地，靠世界座標
+// （REGION_BY_ID.shrine 的位置）決定裙襬要接哪一片舊地形。這次使用者
+// 要求：不要再繫於任何舊世界座標，地形完全自己設計；圖邊也不准再出現
+// 破口或透明穿幫——邊界外的景色要自己延伸出去，不能靠取樣舊世界頂著。
 //
-// 座標系：局部座標，原點在參道正中。z 負向朝神社（上坡），z 正向朝山下。
+// 於是這版參道是一條完全自己想像出來的森林山徑：中段蜿蜒成一個緩 S 彎
+// （不是直線谷地），兩端各留一小段直線銜接神社／村莊的出入口，保持
+// 「連接角色」——trigger／entry 座標跟舊版完全一樣，只換內部怎麼造。
+// 裙襬不再取樣 terrainHeight()，而是把自己的地勢往外延伸、逐漸抬升成
+// 一圈遠山，從任何角度看出去都是連續的地表，不會露出圖外的空氣。
+//
+// 座標系：局部座標，原點在參道正中。z 負向朝神社（上坡），z 正向朝里下山。
 import * as THREE from 'three';
-import { REGION_BY_ID } from '../../config.js';
-import { buildTerrain, buildTerrainSkirt, terrainHeight } from '../../world/terrain.js';
+import { fbm, smoothstep, lerp, clamp } from '../../core/noise.js';
+import { buildTerrain, buildTerrainSkirt, groundSample } from '../../world/terrain.js';
 import { buildVegetation, GrassField } from '../../world/vegetation.js';
 import { makeTorii, makeLantern, initMats } from '../../world/structures.js';
 import { mergeStaticByMaterial } from '../../core/optimize.js';
-import { fbm } from '../../core/noise.js';
 import { Atmosphere } from '../../fx/atmosphere.js';
-
-const R = REGION_BY_ID.shrine;
 
 const LEN = 600;          // 沿 z 的長度
 const WIDTH = 200;        // 沿 x 的寬度
-const TOP_H = 57.6;       // 神社端的高度（＝石段底、shrine 圖 z=-150 的實測值）
-const BOTTOM_H = 26;      // 山下端
+// 兩端高度不是憑空定的：分別實測神社「往參道」傳送點（shrine.js heightAt(0,-150)
+// ≈40.7）與人間之里「往參道」傳送點（terrainHeight 於村里北緣 ≈11.1）算出來，
+// 讓玩家跨圖時腳下高度銜接得上，不會憑空掉落或卡進地形。
+const TOP_H = 40.7;       // 神社端
+const BOTTOM_H = 11.1;    // 里端
 const PATH_HALF = 7;      // 石板路半寬
+const BEND_AMP = 26;      // S 彎的最大側移
+// 進出口兩端各留一段直線（呼應 trigger 落在這一段內，路面不能是斜的彎道）
+const T_ENTRY_SHRINE = (-262 + LEN / 2) / LEN;   // entries.from_shrine 對應的 t
+const T_ENTRY_VILLAGE = (262 + LEN / 2) / LEN;   // entries.from_village 對應的 t
+const T_BEND_IN = 0.2, T_BEND_OUT = 0.8;         // 彎道全幅段的範圍
 
 export const meta = {
   id: 'sando',
@@ -31,8 +42,10 @@ export const meta = {
   sizeX: WIDTH,
   sizeZ: LEN,
   spawn: { x: 0, z: 0, facing: Math.PI },
-  fog: R.fog,
-  accent: R.accent,
+  // 不再借用神社的 fog/accent——這張圖自己的森林山徑，自己配色：
+  // 冷灰藍霧襯山徑，暖琥珀呼應沿路石燈籠的光。
+  fog: 0xaab6c4,
+  accent: 0xd98a3d,
   sky: 'day',
   bgm: null,
   // 自己造地形的圖：世界座標對它沒有意義，所以必須自己提供
@@ -70,42 +83,53 @@ export const portals = [
 ];
 
 /**
- * 參道自己的地形：中央一條緩降的路，兩側抬起成谷壁。
- * 谷壁不是為了好看 —— 它是這張圖的邊界，讓玩家自然留在路上。
+ * 路徑中心線：兩端各一段直線（涵蓋 trigger／entry，路面不能是斜的），
+ * 中段緩緩甩出一個 S 彎——完全自己想像的路線，不是舊世界切出來的直谷。
  */
-export function heightAt(x, z) {
-  const t = (z + LEN / 2) / LEN;                      // 0 = 神社端, 1 = 山下端
-  let h = TOP_H + (BOTTOM_H - TOP_H) * Math.min(1, Math.max(0, t));
-  // 谷壁：離中線越遠抬得越快（二次），到圖邊約 +40m
-  const d = Math.abs(x) / (WIDTH / 2);
-  h += d * d * 40;
-  // 路面之外才加起伏，石板路本身保持平整好走
-  const rough = Math.min(1, Math.max(0, (Math.abs(x) - PATH_HALF) / 12));
-  h += fbm(x * 0.02, z * 0.02, 3) * 2.2 * rough;
-  return h;
+function laneX(z) {
+  const t = clamp((z + LEN / 2) / LEN, 0, 1);
+  const edge = smoothstep(T_ENTRY_SHRINE, T_BEND_IN, t) * (1 - smoothstep(T_BEND_OUT, T_ENTRY_VILLAGE, t));
+  return Math.sin(t * Math.PI * 3.1) * BEND_AMP * edge;
 }
 
 /**
- * 裙襬用的高度：從這張圖自己的地形，平滑過渡到舊世界的地貌。
- *
- * `heightSpace: 'local'` 的圖必須提供這個（契約的一部分）。不做過渡的話，
- * 自己的谷壁跟遠景的世界地形在圖邊會對不上，接縫處出現斷崖。
- * 白玉樓、天界、彼岸之後也都會走這條路。
+ * 參道自己的地形：沿中心線緩降的路，兩側抬起成谷壁。
+ * 谷壁不是為了好看 —— 它是這張圖的邊界，讓玩家自然留在路上。
+ */
+export function heightAt(x, z) {
+  const t = clamp((z + LEN / 2) / LEN, 0, 1);
+  // 用 smoothstep（而不是線性）沿全長降完，兩端的坡度自然趨緩到接近平——
+  // 算出來在 entries 兩點的高度剛好貼近 TOP_H/BOTTOM_H 本身，交接處不會有台階感。
+  let h = lerp(TOP_H, BOTTOM_H, smoothstep(0, 1, t));
+  const lane = laneX(z);
+  // 谷壁：離中心線越遠抬得越快（二次），到谷壁頂約 +40m
+  const d = Math.abs(x - lane) / (WIDTH / 2);
+  h += d * d * 40;
+  // 路面之外才加起伏，石板路本身保持平整好走
+  const rough = clamp((Math.abs(x - lane) - PATH_HALF) / 12, 0, 1);
+  h += fbm(x * 0.02, z * 0.02, 3) * 2.4 * rough;
+  return h;
+}
+
+const FAR_H = 150;  // 遠山基準高度：比參道谷地本身（11~41）高得多，確保四面都能被擋住
+
+/**
+ * 裙襬用的高度：完全不取樣舊世界地形——使用者明確要求不要再繫於舊世界座標。
+ * 從這張圖自己的邊界往外，把自己的地勢延伸並逐漸抬升封頂成一圈遠山，
+ * 確保鏡頭無論轉到哪個角度，圖邊外側永遠是連續地表，不會露出破口。
  */
 export function skirtHeightAt(x, z) {
   const own = heightAt(x, z);
-  // 用世界座標取樣舊世界（參道的世界位置就是它在山坡上的那一段）
-  const world = terrainHeight(x + R.x, z + (R.z - 475));
-  // 從圖邊界往外 240 公尺之內完成過渡
   const d = Math.max(Math.abs(x) / (WIDTH / 2), Math.abs(z) / (LEN / 2));
-  const k = Math.min(1, Math.max(0, (d - 1) / 1.2));
-  const t = k * k * (3 - 2 * k);            // smoothstep
-  return own * (1 - t) + world * t;
+  const t = smoothstep(1.0, 1.6, d);
+  const far = FAR_H + fbm(x * 0.01 + 40, z * 0.01 - 40, 3) * 26;
+  return lerp(own, far, t);
 }
 
 /** 石板路上不長樹也不長草 */
 function plantableHere(x, z) {
-  if (Math.abs(x) < PATH_HALF + 2.5) return false;
+  const lane = laneX(z);
+  if (Math.abs(x - lane) < PATH_HALF + 2.5) return false;
   if (Math.abs(x) > WIDTH / 2 - 6) return false;      // 圖邊留白
   return true;
 }
@@ -124,12 +148,11 @@ export async function build(ctx) {
 
   await progress?.(25, '鋪開參道長坡…');
   const seg = Math.max(48, Math.min(256, Math.round(LEN / 4)));
-  const terrain = buildTerrain(seg, {
-    sizeX: WIDTH, sizeZ: LEN, ox: R.x, oz: R.z - 475,
-  });
-  // buildTerrain 是照世界高度場塑形的（它服務舊世界）。這張圖有自己的
-  // 地形，所以塑形完直接把 Y 換成 heightAt —— 著色與 splat 權重仍沿用
-  // 神社一帶的取樣，色調才跟山上接得起來。
+  const terrain = buildTerrain(seg, { sizeX: WIDTH, sizeZ: LEN });
+  // buildTerrain 是照世界高度場的邏輯塑形/上色的。這張圖有自己的地形，
+  // 塑形完直接把 Y 換成 heightAt，並用新的坡度重新烘一次頂點色／splat
+  // 權重（比照 shrine.js 的修法）——不然彎道的谷壁陡坡會套著沒有細節的
+  // 純草地色，看起來像一片死板色塊。
   {
     const pos = terrain.geometry.attributes.position;
     for (let i = 0; i < pos.count; i++) {
@@ -137,33 +160,59 @@ export async function build(ctx) {
     }
     pos.needsUpdate = true;
     terrain.geometry.computeVertexNormals();
+
+    const nrm = terrain.geometry.attributes.normal;
+    const colorAttr = terrain.geometry.attributes.color;
+    const splatAAttr = terrain.geometry.attributes.aSplatA;
+    const splatBAttr = terrain.geometry.attributes.aSplatB;
+    const _col = new THREE.Color(); const _a4 = [0, 0, 0, 0]; const _b2 = [0, 0];
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i), h = pos.getY(i);
+      const slope = 1 - nrm.getY(i);
+      // groundSample 原本是照世界座標判斷地區貼圖的。這張圖的局部座標
+      // 範圍（x±100／z±300）剛好會蓋到世界座標 (0,0) 附近，若直接原樣丟
+      // 進去，會意外落進人間之里（世界座標 -80,150）的地區混色範圍——
+      // 又繞回「繫於舊世界座標」。固定加一個遠離所有地區／湖泊的偏移量，
+      // 保證這裡永遠只拿到通用的草地／森林／岩壁混色（純看坡度與噪聲），
+      // 不會被任何真實地區的貼圖分支影響。
+      groundSample(x + 5000, z + 5000, h, slope, _col, _a4, _b2);
+      colorAttr.setXYZ(i, _col.r, _col.g, _col.b);
+      splatAAttr.setXYZW(i, _a4[0], _a4[1], _a4[2], _a4[3]);
+      splatBAttr.setXYZW(i, _b2[0], _b2[1], 0, 0);
+    }
+    colorAttr.needsUpdate = true;
+    splatAAttr.needsUpdate = true;
+    splatBAttr.needsUpdate = true;
   }
   group.add(terrain);
 
-  // 遠景裙襬。這張圖是 local 高度場，所以餵的是自己的過渡函式，
-  // 而不是世界高度場 —— 直接用世界的會在圖邊斷開。
+  // 遠景裙襬：餵自己的過渡函式（見 skirtHeightAt），不取樣世界地形。
   group.add(buildTerrainSkirt({ x: WIDTH / 2, z: LEN / 2 }, 1100, skirtHeightAt));
 
-  // 這張圖自己的除草區（局部座標）：石板路上不長草。
-  // clearings 現在是每張圖一份，manager 載圖時換上 —— 不會再污染舊世界。
-  const clearings = [{ x: 0, z: 0, hw: PATH_HALF + 2, hd: LEN / 2 }];
+  // 這張圖自己的除草區（局部座標）：沿彎道分段跟著中心線走，
+  // 一整條直的方框蓋不住彎道，所以每 20 公尺放一段、彼此重疊。
+  const clearings = [];
+  for (let z = -LEN / 2; z <= LEN / 2; z += 20) {
+    clearings.push({ x: laneX(z), z, hw: PATH_HALF + 2.5, hd: 12 });
+  }
 
-  // --- 鳥居：頂端一座、中段一座 ---------------------------------------
-  for (const [z, s] of [[-250, 1.2], [40, 1.0]]) {
-    const t = makeTorii(s);
-    t.position.set(0, heightAt(0, z), z);
+  // --- 鳥居：兩端各一座，立在彎道之前的直線段（方位不用跟著彎道轉） ---
+  for (const z of [-245, 245]) {
+    const t = makeTorii(1.15);
+    t.position.set(laneX(z), heightAt(laneX(z), z), z);
     props.add(t);
-    const W = 5.4 * s / 2;
+    const W = 5.4 * 1.15 / 2;
     for (const sx of [-1, 1]) {
-      colliders.push({ x: sx * W, z, r: 0.4 * s, y: heightAt(0, z), h: 7 * s });
+      colliders.push({ x: laneX(z) + sx * W, z, r: 0.46, y: heightAt(laneX(z), z), h: 8 });
     }
   }
 
-  // --- 石燈籠列：兩側等距，夜裡是唯一的光 -----------------------------
+  // --- 石燈籠列：沿彎道兩側等距，夜裡是唯一的光 -----------------------
   await progress?.(60, '點起石燈籠…');
-  for (let z = -270; z <= 270; z += 30) {
+  for (let z = -270; z <= 270; z += 24) {
+    const lane = laneX(z);
     for (const sx of [-1, 1]) {
-      const lx = sx * (PATH_HALF + 2.2);
+      const lx = lane + sx * (PATH_HALF + 2.2);
       const ly = heightAt(lx, z);
       const L = makeLantern(0.95);
       L.position.set(lx, ly, z);
@@ -172,13 +221,13 @@ export async function build(ctx) {
     }
   }
 
-  // --- 兩側杉木 --------------------------------------------------------
-  await progress?.(75, '立起杉木…');
-  const vegetation = buildVegetation(Math.round(q.trees * 0.12), {
+  // --- 兩側杉楓混林（不再是單一杉並木，多一點樹種變化）----------------
+  await progress?.(75, '立起杉楓混林…');
+  const vegetation = buildVegetation(Math.round(q.trees * 0.14), {
     cx: 0, cz: 0, halfX: WIDTH / 2, halfZ: LEN / 2,
     heightFn: heightAt,
     plantableFn: plantableHere,
-    speciesFn: () => 'cedar',        // 參道兩側是杉並木，不混其他樹種
+    speciesFn: (x, z, rnd) => (rnd() < 0.72 ? 'cedar' : 'maple'),
   });
   group.add(vegetation);
 
@@ -197,7 +246,7 @@ export async function build(ctx) {
   return {
     group,
     heightAt,
-    origin: { x: R.x, z: R.z - 475 },
+    origin: { x: 0, z: 0 },
     colliders,
     lanterns,
     staticLights: [],
